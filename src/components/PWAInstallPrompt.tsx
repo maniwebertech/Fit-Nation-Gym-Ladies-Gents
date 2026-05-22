@@ -24,7 +24,15 @@ export default function PWAInstallPrompt() {
       return
     }
 
-    // Chrome / Edge / Firefox Android — listen for browser prompt
+    // Already fired before React mounted? (captured in inline head script)
+    const cached = (window as unknown as { __pwaPrompt?: BeforeInstallPromptEvent }).__pwaPrompt
+    if (cached) {
+      setPrompt(cached)
+      setShow(true)
+      return
+    }
+
+    // Chrome / Edge / Firefox Android — listen for prompt if not yet fired
     const handler = (e: Event) => {
       e.preventDefault()
       setPrompt(e as BeforeInstallPromptEvent)

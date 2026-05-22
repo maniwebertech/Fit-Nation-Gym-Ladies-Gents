@@ -8,6 +8,7 @@ const APP_URL = 'https://fit-nation-gym.vercel.app'
 const OG_IMAGE = `${APP_URL}/icons/og-image.png`
 
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_URL),
   title: 'Fit Nation Gym — Member Management',
   description: 'Official member & fee management system for Fit Nation Gym Ladies & Gents, Main GT Road, Wazirabad.',
   manifest: '/manifest.json',
@@ -74,8 +75,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Set data-theme before React hydrates to prevent flash */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('fit-nation-theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})()` }} />
+        {/* Set data-theme + capture PWA prompt before React hydrates */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('fit-nation-theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);window.__pwaPrompt=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__pwaPrompt=e;});})()` }} />
         {/* Windows tile */}
         <meta name="msapplication-TileImage" content="/icons/icon-144.png" />
         <meta name="msapplication-TileColor" content="#1B3FCC" />
