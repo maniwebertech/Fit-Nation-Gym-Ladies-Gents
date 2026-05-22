@@ -25,6 +25,7 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
   const [success, setSuccess] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -196,6 +197,7 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
           {/* Receipt Image */}
           <div>
             <label style={labelStyle}>RECEIPT / PROOF (OPTIONAL)</label>
+            {/* File picker — gallery, files, PDFs */}
             <input
               ref={fileRef}
               type="file"
@@ -203,43 +205,84 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
               className="hidden"
               onChange={handleFileChange}
             />
+            {/* Camera capture — opens rear camera directly on mobile */}
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileChange}
+            />
             {receiptPreview ? (
-              <div className="relative rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                <img
-                  src={receiptPreview}
-                  alt="Receipt preview"
-                  style={{ width: '100%', maxHeight: 180, objectFit: 'cover', display: 'block' }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity"
-                  style={{ background: 'rgba(0,0,0,0.55)' }}>
-                  <button type="button" onClick={() => fileRef.current?.click()}
-                    className="btn-ghost" style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}>
-                    Change
-                  </button>
-                  <button type="button" onClick={removeReceipt}
-                    className="btn-ghost" style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem', color: '#FF3B5C' }}>
-                    Remove
-                  </button>
-                </div>
-                <div className="px-3 py-1.5 text-xs truncate" style={{ background: 'var(--bg-card2)', color: 'var(--text-muted)' }}>
-                  {receipt?.name}
+              <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                {receipt?.type === 'application/pdf' ? (
+                  <div className="flex items-center gap-3 px-4 py-3" style={{ background: 'var(--bg-card2)' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6B8FFF" strokeWidth="1.5">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span className="flex-1 text-sm truncate" style={{ color: 'var(--text-secondary)' }}>{receipt?.name}</span>
+                  </div>
+                ) : (
+                  <img
+                    src={receiptPreview}
+                    alt="Receipt preview"
+                    style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+                  />
+                )}
+                <div className="flex items-center justify-between px-3 py-2 gap-2" style={{ background: 'var(--bg-card2)', borderTop: '1px solid var(--border)' }}>
+                  <span className="text-xs truncate flex-1" style={{ color: 'var(--text-muted)' }}>{receipt?.name}</span>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button type="button" onClick={() => fileRef.current?.click()}
+                      className="text-xs px-2.5 py-1 rounded-md transition-colors"
+                      style={{ background: 'rgba(107,143,255,0.1)', color: '#6B8FFF', border: '1px solid rgba(107,143,255,0.2)' }}>
+                      Change
+                    </button>
+                    <button type="button" onClick={() => cameraRef.current?.click()}
+                      className="text-xs px-2.5 py-1 rounded-md transition-colors"
+                      style={{ background: 'rgba(107,143,255,0.1)', color: '#6B8FFF', border: '1px solid rgba(107,143,255,0.2)' }}>
+                      Retake
+                    </button>
+                    <button type="button" onClick={removeReceipt}
+                      className="text-xs px-2.5 py-1 rounded-md transition-colors"
+                      style={{ background: 'rgba(255,59,92,0.08)', color: '#FF3B5C', border: '1px solid rgba(255,59,92,0.2)' }}>
+                      Remove
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 rounded-lg py-3 transition-colors"
-                style={{ border: '1.5px dashed var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#1B3FCC'; e.currentTarget.style.color = '#6B8FFF' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                Attach receipt image or PDF
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => cameraRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-lg py-4 transition-colors"
+                  style={{ border: '1.5px dashed var(--border)', color: 'var(--text-muted)', fontSize: '0.8rem' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#1B3FCC'; e.currentTarget.style.color = '#6B8FFF' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  Take Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-lg py-4 transition-colors"
+                  style={{ border: '1.5px dashed var(--border)', color: 'var(--text-muted)', fontSize: '0.8rem' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#1B3FCC'; e.currentTarget.style.color = '#6B8FFF' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Upload File
+                </button>
+              </div>
             )}
           </div>
 
