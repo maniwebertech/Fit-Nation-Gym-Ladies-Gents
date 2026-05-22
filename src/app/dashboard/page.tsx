@@ -27,13 +27,13 @@ export default function DashboardPage() {
         supabase.from('members_with_payment_status').select('*'),
         supabase.from('fee_payments').select('amount, payment_date').gte('payment_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
       ])
-      const members = membersRes.data || []
-      const payments = paymentsRes.data || []
+      const members = (membersRes.data || []) as Array<{gender: string; is_overdue: boolean}>
+      const payments = (paymentsRes.data || []) as Array<{amount: number}>
       setStats({
         total: members.length,
-        male: members.filter(m => m.gender === 'Male').length,
-        female: members.filter(m => m.gender === 'Female').length,
-        overdue: members.filter(m => m.is_overdue).length,
+        male: members.filter((m) => m.gender === 'Male').length,
+        female: members.filter((m) => m.gender === 'Female').length,
+        overdue: members.filter((m) => m.is_overdue).length,
         paid_this_month: payments.length,
         revenue_this_month: payments.reduce((s, p) => s + (p.amount || 0), 0)
       })
