@@ -6,6 +6,7 @@ import { formatPKR, formatDate, buildWhatsAppUrl } from '@/lib/utils'
 import type { Member } from '@/types'
 import AddFeeModal from '@/components/AddFeeModal'
 import EditMemberModal from '@/components/EditMemberModal'
+import MemberDetailModal from '@/components/MemberDetailModal'
 import Link from 'next/link'
 
 type Filter = 'all' | 'overdue' | 'paid' | 'due_soon' | 'male' | 'female'
@@ -61,9 +62,17 @@ function PhoneCell({ m }: { m: Member }) {
   )
 }
 
-function ActionButtons({ m, onFee, onEdit, onDelete }: { m: Member; onFee: () => void; onEdit: () => void; onDelete: () => void }) {
+function ActionButtons({ m, onView, onFee, onEdit, onDelete }: { m: Member; onView: () => void; onFee: () => void; onEdit: () => void; onDelete: () => void }) {
   return (
     <div className="flex items-center gap-1.5">
+      <button onClick={onView} title="View fee history"
+        className="p-2 rounded-lg transition-colors"
+        style={{ background: 'rgba(139,92,246,0.12)', color: '#A78BFA', border: '1px solid rgba(139,92,246,0.25)' }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
       <button onClick={onFee} title="Add Fee"
         className="p-2 rounded-lg transition-colors"
         style={{ background: 'rgba(57,255,20,0.1)', color: '#39FF14', border: '1px solid rgba(57,255,20,0.2)' }}>
@@ -79,7 +88,7 @@ function ActionButtons({ m, onFee, onEdit, onDelete }: { m: Member; onFee: () =>
           <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
         </svg>
       </button>
-      <button onClick={onDelete} title="Delete"
+      <button onClick={onDelete} title="Delete member and all fee records"
         className="p-2 rounded-lg transition-colors"
         style={{ background: 'rgba(255,59,92,0.1)', color: '#FF3B5C', border: '1px solid rgba(255,59,92,0.2)' }}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -137,6 +146,7 @@ export default function MembersPage() {
   const [page, setPage] = useState(1)
   const [feeModal, setFeeModal] = useState<Member | null>(null)
   const [editModal, setEditModal] = useState<Member | null>(null)
+  const [detailModal, setDetailModal] = useState<Member | null>(null)
   const supabase = createClient()
 
   const load = useCallback(async () => {
@@ -209,8 +219,9 @@ export default function MembersPage() {
   }
 
   async function deleteMember(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? This will also delete all their fee records.`)) return
+    if (!confirm(`Delete "${name}"?\n\nAll their fee payment records will also be permanently deleted.`)) return
     await supabase.from('members').delete().eq('id', id)
+    setDetailModal(null)
     load()
   }
 
@@ -311,8 +322,13 @@ export default function MembersPage() {
                 {!loading && paginated.map(m => (
                   <tr key={m.id}>
                     <td>
-                      <div className="font-semibold text-sm">{m.full_name}</div>
-                      {m.father_name && <div className="text-xs" style={{ color: 'var(--text-muted)' }}>S/O {m.father_name}</div>}
+                      <button onClick={() => setDetailModal(m)} className="text-left group"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                        <div className="font-semibold text-sm group-hover:underline" style={{ color: 'var(--text-primary)', textDecorationColor: '#6B8FFF' }}>
+                          {m.full_name}
+                        </div>
+                        {m.father_name && <div className="text-xs" style={{ color: 'var(--text-muted)' }}>S/O {m.father_name}</div>}
+                      </button>
                     </td>
                     <td><PhoneCell m={m} /></td>
                     <td><span className={m.gender === 'Male' ? 'badge-male' : 'badge-female'}>{m.gender}</span></td>
@@ -324,6 +340,7 @@ export default function MembersPage() {
                     <td>
                       <ActionButtons
                         m={m}
+                        onView={() => setDetailModal(m)}
                         onFee={() => setFeeModal(m)}
                         onEdit={() => setEditModal(m)}
                         onDelete={() => deleteMember(m.id, m.full_name)}
@@ -359,12 +376,13 @@ export default function MembersPage() {
 
                 {/* Name row */}
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <div>
-                    <div className="font-semibold" style={{ fontSize: '0.975rem' }}>{m.full_name}</div>
+                  <button onClick={() => setDetailModal(m)} className="text-left"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <div className="font-semibold" style={{ fontSize: '0.975rem', color: 'var(--text-primary)' }}>{m.full_name}</div>
                     {m.father_name && (
                       <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>S/O {m.father_name}</div>
                     )}
-                  </div>
+                  </button>
                   <div className="flex flex-col items-end gap-1">
                     <StatusBadge m={m} />
                     <span className={m.gender === 'Male' ? 'badge-male' : 'badge-female'}>{m.gender}</span>
@@ -407,6 +425,7 @@ export default function MembersPage() {
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
                   <ActionButtons
                     m={m}
+                    onView={() => setDetailModal(m)}
                     onFee={() => setFeeModal(m)}
                     onEdit={() => setEditModal(m)}
                     onDelete={() => deleteMember(m.id, m.full_name)}
@@ -422,6 +441,16 @@ export default function MembersPage() {
       </div>
 
       {/* ── Modals ──────────────────────────────────────────── */}
+      {detailModal && (
+        <MemberDetailModal
+          member={detailModal}
+          onClose={() => setDetailModal(null)}
+          onFeeAdded={() => {
+            setDetailModal(null)
+            setFeeModal(detailModal)
+          }}
+        />
+      )}
       {feeModal && (
         <AddFeeModal
           preselectedMember={feeModal.id ? feeModal : undefined}
