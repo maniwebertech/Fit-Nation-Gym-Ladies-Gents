@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Fit Nation Gym — Member Management",
   "short_name": "Fit Nation",
   "description": "Member & fee management for Fit Nation Gym Ladies & Gents, Wazirabad",
@@ -23,10 +24,16 @@
       "purpose": "any"
     },
     {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "/icons/icon-1024.png",
       "sizes": "1024x1024",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

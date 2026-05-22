@@ -26,6 +26,11 @@ function MoonIcon() {
   )
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -35,8 +40,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileOpen, setMobileOpen] = useState(false)
   const [userName, setUserName] = useState('Hafiz Abdul Saboor')
   const [userRole, setUserRole] = useState('Manager / Instructor')
+  const [pwaPrompt, setPwaPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [pwaInstalled, setPwaInstalled] = useState(false)
 
   useEffect(() => { setMobileOpen(false) }, [pathname])
+
+  useEffect(() => {
+    // Check if already running as installed PWA
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setPwaInstalled(true)
+      return
+    }
+    // Pick up prompt captured in head script, or listen for it
+    const cached = (window as unknown as { __pwaPrompt?: BeforeInstallPromptEvent }).__pwaPrompt
+    if (cached) { setPwaPrompt(cached); return }
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setPwaPrompt(e as BeforeInstallPromptEvent)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -131,6 +155,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="hidden sm:inline">{theme === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
         </div>
+        {/* Install App button — shown when browser has the install prompt ready */}
+        {!pwaInstalled && pwaPrompt && (
+          <button
+            onClick={async () => {
+              await pwaPrompt.prompt()
+              const { outcome } = await pwaPrompt.userChoice
+              if (outcome === 'accepted') { setPwaPrompt(null); setPwaInstalled(true) }
+            }}
+            className="w-full flex items-center justify-center gap-2 mb-2 rounded-lg py-2 text-sm font-semibold transition-all"
+            style={{ background: 'linear-gradient(135deg, #1B3FCC, #2A52E8)', color: '#fff', fontFamily: 'Rajdhani', letterSpacing: '0.06em', border: 'none', cursor: 'pointer' }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            INSTALL APP
+          </button>
+        )}
         <button onClick={handleLogout} disabled={loggingOut} className="btn-ghost w-full justify-center" style={{ fontSize: '0.85rem' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/>
@@ -169,9 +211,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </svg>
           </button>
           <span style={{ fontFamily: 'Rajdhani', fontWeight: 700, fontSize: '1rem', color: 'var(--green-neon)' }}>FIT NATION GYM</span>
-          <button onClick={toggle} className="btn-ghost" style={{ padding: '0.4rem' }}>
-            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-          </button>
+          <div className="flex items-center gap-1">
+            {!pwaInstalled && pwaPrompt && (
+              <button
+                onClick={async () => {
+                  await pwaPrompt.prompt()
+                  const { outcome } = await pwaPrompt.userChoice
+                  if (outcome === 'accepted') { setPwaPrompt(null); setPwaInstalled(true) }
+                }}
+                className="btn-ghost" style={{ padding: '0.4rem' }} title="Install App"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#39FF14" strokeWidth="2.5">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </button>
+            )}
+            <button onClick={toggle} className="btn-ghost" style={{ padding: '0.4rem' }}>
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-auto">
