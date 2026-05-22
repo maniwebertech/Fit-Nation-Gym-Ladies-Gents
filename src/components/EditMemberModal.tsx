@@ -11,7 +11,7 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
     full_name: member.full_name,
     father_name: member.father_name || '',
     phone_country_code: member.phone_country_code,
-    phone_number: member.phone_number,
+    phone_number: member.phone_number || '',
     email: member.email || '',
     address: member.address || '',
     gender: member.gender,
@@ -20,34 +20,22 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [phoneError, setPhoneError] = useState('')
   const supabase = createClient()
 
   function set(field: string, value: string | number) {
     setForm(f => ({ ...f, [field]: value }))
     setError('')
-    if (field === 'phone_number') setPhoneError('')
-  }
-
-  function validatePhone() {
-    if (!form.phone_number.trim()) { setPhoneError('Phone number is required.'); return false }
-    if (form.phone_country_code === '+92' && form.phone_number.startsWith('0')) {
-      setPhoneError('Pakistani numbers should not start with 0 here (country code +92 already included).')
-      return false
-    }
-    return true
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.full_name.trim()) { setError('Full name is required.'); return }
-    if (!validatePhone()) return
     setLoading(true)
     const { error: err } = await supabase.from('members').update({
       full_name: form.full_name.trim(),
       father_name: form.father_name.trim() || null,
       phone_country_code: form.phone_country_code,
-      phone_number: form.phone_number.trim(),
+      phone_number: form.phone_number.trim() || null,
       email: form.email.trim() || null,
       address: form.address.trim() || null,
       gender: form.gender,
@@ -67,7 +55,7 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
 
   return (
     <div className="modal-overlay animate-fade-in" onClick={onClose}>
-      <div className="gym-card p-6 max-w-lg w-full animate-fade-slide-up overflow-y-auto" style={{ maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+      <div className="gym-card p-5 md:p-6 max-w-lg w-full animate-fade-slide-up overflow-y-auto" style={{ maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-2xl" style={{ fontFamily: 'Rajdhani', fontWeight: 700 }}>EDIT MEMBER</h2>
           <button onClick={onClose} className="btn-ghost" style={{ padding: '0.4rem' }}>
@@ -82,25 +70,25 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
             <label style={labelStyle}>FULL NAME *</label>
             <input className="gym-input" value={form.full_name} onChange={e => set('full_name', e.target.value)} required />
           </div>
+
           <div>
             <label style={labelStyle}>FATHER NAME</label>
             <input className="gym-input" value={form.father_name} onChange={e => set('father_name', e.target.value)} />
           </div>
+
           <div>
-            <label style={labelStyle}>PHONE NUMBER *</label>
+            <label style={labelStyle}>PHONE NUMBER <span style={{ fontWeight: 400 }}>(OPTIONAL)</span></label>
             <div className="flex gap-2">
-              <select className="gym-input" style={{ width: 150, flexShrink: 0 }} value={form.phone_country_code}
+              <select className="gym-input" style={{ width: 140, flexShrink: 0 }} value={form.phone_country_code}
                 onChange={e => set('phone_country_code', e.target.value)}>
                 {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.code} {c.name}</option>)}
               </select>
-              <div className="flex-1">
-                <input className="gym-input" value={form.phone_number}
-                  onChange={e => set('phone_number', e.target.value)}
-                  onBlur={validatePhone} required />
-                {phoneError && <p className="text-xs mt-1" style={{ color: '#FF3B5C' }}>{phoneError}</p>}
-              </div>
+              <input className="gym-input" value={form.phone_number}
+                onChange={e => set('phone_number', e.target.value)}
+                placeholder={form.phone_country_code === '+92' ? '3001234567' : 'Phone number'} />
             </div>
           </div>
+
           <div>
             <label style={labelStyle}>GENDER</label>
             <div className="flex gap-3">
@@ -108,7 +96,7 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
                 <button type="button" key={g} onClick={() => set('gender', g)}
                   className="flex-1 py-2.5 rounded-lg border text-sm transition-all"
                   style={{
-                    fontFamily: 'Rajdhani', fontWeight: 600,
+                    fontFamily: 'Rajdhani', fontWeight: 600, cursor: 'pointer',
                     background: form.gender === g ? (g === 'Male' ? 'rgba(27,63,204,0.2)' : 'rgba(255,100,180,0.15)') : 'transparent',
                     borderColor: form.gender === g ? (g === 'Male' ? '#1B3FCC' : '#FF64B4') : 'var(--border)',
                     color: form.gender === g ? (g === 'Male' ? '#6B8FFF' : '#FF64B4') : 'var(--text-muted)',
@@ -118,29 +106,35 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
               ))}
             </div>
           </div>
+
           <div>
             <label style={labelStyle}>MONTHLY FEE (PKR)</label>
             <input type="number" className="gym-input" min={1500} max={5000} step={100}
               value={form.fee_amount} onChange={e => set('fee_amount', Number(e.target.value))} required />
           </div>
+
           <div>
             <label style={labelStyle}>REGISTRATION DATE</label>
             <input type="date" className="gym-input" value={form.registration_date}
               onChange={e => set('registration_date', e.target.value)} required />
           </div>
+
           <div>
             <label style={labelStyle}>EMAIL (OPTIONAL)</label>
             <input type="email" className="gym-input" value={form.email} onChange={e => set('email', e.target.value)} />
           </div>
+
           <div>
             <label style={labelStyle}>ADDRESS (OPTIONAL)</label>
             <input className="gym-input" value={form.address} onChange={e => set('address', e.target.value)} />
           </div>
+
           {error && (
             <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(255,59,92,0.1)', border: '1px solid rgba(255,59,92,0.3)', color: '#FF3B5C' }}>
               {error}
             </div>
           )}
+
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
             <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading}>

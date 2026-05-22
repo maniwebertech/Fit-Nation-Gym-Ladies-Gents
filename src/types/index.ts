@@ -3,7 +3,7 @@ export interface Member {
   full_name: string
   father_name: string | null
   phone_country_code: string
-  phone_number: string
+  phone_number: string | null
   email: string | null
   address: string | null
   gender: 'Male' | 'Female'
@@ -11,7 +11,6 @@ export interface Member {
   registration_date: string
   created_at: string
   updated_at: string
-  // joined from fee_payments
   last_payment_date?: string | null
   last_payment_amount?: number | null
   next_due_date?: string | null

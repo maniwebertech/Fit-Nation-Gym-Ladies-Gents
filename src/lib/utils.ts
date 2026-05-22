@@ -24,7 +24,8 @@ export function getDaysRemaining(nextDueDate: string): number {
   return differenceInDays(parseISO(nextDueDate), new Date())
 }
 
-export function buildWhatsAppUrl(countryCode: string, phoneNumber: string): string {
+export function buildWhatsAppUrl(countryCode: string, phoneNumber: string | null): string {
+  if (!phoneNumber) return '#'
   const digits = countryCode.replace('+', '') + phoneNumber.replace(/\D/g, '')
   return `https://wa.me/${digits}`
 }
