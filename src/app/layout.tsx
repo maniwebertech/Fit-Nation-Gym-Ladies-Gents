@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
+import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 
 const APP_URL = 'https://fit-nation-gym.vercel.app'
 const OG_IMAGE = `${APP_URL}/icons/og-image.png`
@@ -79,7 +81,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="msapplication-TileColor" content="#1B3FCC" />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <ServiceWorkerRegistration />
+          <PWAInstallPrompt />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )

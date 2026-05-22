@@ -83,11 +83,31 @@ LEFT JOIN LATERAL (
 GRANT SELECT ON members_with_payment_status TO authenticated;
 
 -- ============================================================
--- MIGRATION ONLY (skip if fresh install — run this if you
--- already have the members table and need to make phone optional):
+-- MIGRATION: make phone optional (skip if fresh install)
 -- ============================================================
 -- ALTER TABLE members ALTER COLUMN phone_number DROP NOT NULL;
 -- ALTER TABLE members DROP CONSTRAINT IF EXISTS members_phone_country_code_phone_number_key;
 -- CREATE UNIQUE INDEX IF NOT EXISTS members_phone_unique
 --   ON members (phone_country_code, phone_number)
 --   WHERE phone_number IS NOT NULL AND phone_number <> '';
+
+-- ============================================================
+-- MIGRATION: add receipt image support
+-- Run this in Supabase SQL Editor if the table already exists
+-- ============================================================
+-- Step 1: Add receipt_url column
+-- ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS receipt_url TEXT;
+--
+-- Step 2: Create receipts storage bucket (run in SQL Editor)
+-- INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+-- VALUES ('receipts', 'receipts', true, 5242880,
+--   ARRAY['image/jpeg','image/png','image/webp','image/gif','application/pdf'])
+-- ON CONFLICT (id) DO NOTHING;
+--
+-- Step 3: Storage RLS policies
+-- CREATE POLICY "auth_upload_receipts" ON storage.objects
+--   FOR INSERT TO authenticated WITH CHECK (bucket_id = 'receipts');
+-- CREATE POLICY "auth_read_receipts" ON storage.objects
+--   FOR SELECT TO authenticated USING (bucket_id = 'receipts');
+-- CREATE POLICY "auth_delete_receipts" ON storage.objects
+--   FOR DELETE TO authenticated USING (bucket_id = 'receipts');

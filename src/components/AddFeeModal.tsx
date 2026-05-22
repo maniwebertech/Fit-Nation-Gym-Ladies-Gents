@@ -18,10 +18,13 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
   const [amount, setAmount] = useState<number>(preselectedMember?.fee_amount ?? 3000)
   const [date, setDate] = useState(today)
   const [notes, setNotes] = useState('')
+  const [receipt, setReceipt] = useState<File | null>(null)
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -47,16 +50,51 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
     setSuggestions([])
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setReceipt(file)
+    const reader = new FileReader()
+    reader.onload = ev => setReceiptPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  function removeReceipt() {
+    setReceipt(null)
+    setReceiptPreview(null)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!selected) { setError('Please select a member.'); return }
     setLoading(true)
     setError('')
+
+    let receiptUrl: string | null = null
+
+    // Upload receipt image if provided
+    if (receipt) {
+      const ext = receipt.name.split('.').pop()
+      const path = `${selected.id}/${Date.now()}.${ext}`
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('receipts')
+        .upload(path, receipt, { contentType: receipt.type, upsert: false })
+      if (uploadErr) {
+        setError(`Receipt upload failed: ${uploadErr.message}`)
+        setLoading(false)
+        return
+      }
+      const { data: urlData } = supabase.storage.from('receipts').getPublicUrl(uploadData.path)
+      receiptUrl = urlData.publicUrl
+    }
+
     const { error: err } = await supabase.from('fee_payments').insert({
       member_id: selected.id,
       amount: Number(amount),
       payment_date: date,
       notes: notes.trim() || null,
+      receipt_url: receiptUrl,
     })
     if (err) { setError(err.message); setLoading(false) }
     else { setSuccess(true); setLoading(false) }
@@ -69,9 +107,10 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
         <h3 className="text-xl mb-1" style={{ fontFamily: 'Rajdhani', color: '#39FF14' }}>PAYMENT RECORDED!</h3>
         <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
           PKR {Number(amount).toLocaleString()} recorded for {selected?.full_name}
+          {receipt && <span className="block mt-1" style={{ color: 'var(--text-muted)' }}>Receipt attached</span>}
         </p>
         <div className="flex gap-3 justify-center">
-          <button onClick={() => { setSuccess(false); setSelected(null); setSearch(''); setAmount(3000); setDate(today); setNotes('') }} className="btn-ghost">
+          <button onClick={() => { setSuccess(false); setSelected(null); setSearch(''); setAmount(3000); setDate(today); setNotes(''); setReceipt(null); setReceiptPreview(null) }} className="btn-ghost">
             Add Another
           </button>
           <button onClick={onSuccess} className="btn-green">Done</button>
@@ -149,9 +188,59 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
           </div>
 
           <div>
-            <label style={labelStyle}>NOTES (OPTIONAL)</label>
-            <input className="gym-input" placeholder="e.g. Advance payment, partial..." value={notes}
+            <label style={labelStyle}>DESCRIPTION / TRANSACTION ID (OPTIONAL)</label>
+            <input className="gym-input" placeholder="e.g. TXN-20240522, Easypaisa #12345, advance..." value={notes}
               onChange={e => setNotes(e.target.value)} />
+          </div>
+
+          {/* Receipt Image */}
+          <div>
+            <label style={labelStyle}>RECEIPT / PROOF (OPTIONAL)</label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            {receiptPreview ? (
+              <div className="relative rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                <img
+                  src={receiptPreview}
+                  alt="Receipt preview"
+                  style={{ width: '100%', maxHeight: 180, objectFit: 'cover', display: 'block' }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity"
+                  style={{ background: 'rgba(0,0,0,0.55)' }}>
+                  <button type="button" onClick={() => fileRef.current?.click()}
+                    className="btn-ghost" style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}>
+                    Change
+                  </button>
+                  <button type="button" onClick={removeReceipt}
+                    className="btn-ghost" style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem', color: '#FF3B5C' }}>
+                    Remove
+                  </button>
+                </div>
+                <div className="px-3 py-1.5 text-xs truncate" style={{ background: 'var(--bg-card2)', color: 'var(--text-muted)' }}>
+                  {receipt?.name}
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 rounded-lg py-3 transition-colors"
+                style={{ border: '1.5px dashed var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#1B3FCC'; e.currentTarget.style.color = '#6B8FFF' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Attach receipt image or PDF
+              </button>
+            )}
           </div>
 
           {error && (
@@ -163,7 +252,7 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
             <button type="submit" className="btn-green flex-1 justify-center" disabled={loading || !selected}>
-              {loading ? 'Recording...' : 'RECORD PAYMENT'}
+              {loading ? (receipt ? 'Uploading...' : 'Recording...') : 'RECORD PAYMENT'}
             </button>
           </div>
         </form>
