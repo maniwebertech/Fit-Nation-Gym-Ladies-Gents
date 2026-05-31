@@ -145,52 +145,64 @@ export default function ProfileImageUpload({ currentUrl, gender, onChange }: Pro
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={handleFileSelect} />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFileSelect} />
 
-      {/* Crop modal */}
+      {/* Crop modal — centered dialog */}
       {rawSrc && (
-        <div className="fixed inset-0 z-[70] flex flex-col" style={{ background: 'rgba(0,0,0,0.96)' }}>
-          <div className="flex items-center justify-between px-5 py-4 shrink-0"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-            <h3 style={{ fontFamily: 'Rajdhani', fontWeight: 700, color: '#fff', fontSize: '1.1rem', letterSpacing: '0.06em' }}>
-              CROP PHOTO
-            </h3>
-            <button type="button" onClick={() => setRawSrc(null)}
-              style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>
-              ✕
-            </button>
-          </div>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.75)' }}
+          onClick={() => setRawSrc(null)}>
+          <div className="flex flex-col rounded-xl overflow-hidden w-full"
+            style={{ maxWidth: 440, height: '75vh', maxHeight: 560, background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 8px 48px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}>
 
-          <div className="relative flex-1" style={{ minHeight: 0 }}>
-            <Cropper
-              image={rawSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={1}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-              cropShape="round"
-              showGrid={false}
-            />
-          </div>
-
-          <div className="px-5 py-5 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', background: 'rgba(10,14,26,0.8)' }}>
-            <div className="flex items-center gap-3 mb-4">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
-              </svg>
-              <input type="range" min={1} max={3} step={0.01} value={zoom}
-                onChange={e => setZoom(Number(e.target.value))}
-                style={{ flex: 1, accentColor: '#39FF14' }} />
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="11" y1="8" x2="11" y2="14"/>
-              </svg>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 shrink-0"
+              style={{ borderBottom: '1px solid var(--border)' }}>
+              <h3 style={{ fontFamily: 'Rajdhani', fontWeight: 700, fontSize: '1rem', letterSpacing: '0.06em' }}>
+                CROP PHOTO
+              </h3>
+              <button type="button" onClick={() => setRawSrc(null)}
+                className="btn-ghost" style={{ padding: '0.3rem' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
             </div>
-            <button type="button" onClick={confirmCrop} className="btn-primary w-full justify-center"
-              style={{ fontFamily: 'Rajdhani', fontWeight: 700, letterSpacing: '0.08em', fontSize: '0.95rem' }}>
-              USE THIS PHOTO
-            </button>
+
+            {/* Cropper */}
+            <div className="relative flex-1" style={{ minHeight: 0 }}>
+              <Cropper
+                image={rawSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+                cropShape="round"
+                showGrid={false}
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 shrink-0" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-card2)' }}>
+              <div className="flex items-center gap-3 mb-3">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.4, flexShrink: 0 }}>
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+                <input type="range" min={1} max={3} step={0.01} value={zoom}
+                  onChange={e => setZoom(Number(e.target.value))}
+                  style={{ flex: 1, accentColor: '#39FF14' }} />
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.4, flexShrink: 0 }}>
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  <line x1="11" y1="8" x2="11" y2="14"/>
+                </svg>
+              </div>
+              <button type="button" onClick={confirmCrop} className="btn-primary w-full justify-center"
+                style={{ fontFamily: 'Rajdhani', fontWeight: 700, letterSpacing: '0.08em', fontSize: '0.9rem' }}>
+                USE THIS PHOTO
+              </button>
+            </div>
           </div>
         </div>
       )}
