@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Member } from '@/types'
 import { COUNTRY_CODES } from '@/lib/utils'
+import ProfileImageUpload from '@/components/ProfileImageUpload'
 
 interface Props { member: Member; onClose: () => void; onSuccess: () => void }
 
@@ -18,6 +19,8 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
     fee_amount: member.fee_amount,
     registration_date: member.registration_date,
   })
+  // undefined = no change, null = remove, Blob = new photo
+  const [profileChange, setProfileChange] = useState<Blob | null | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const supabase = createClient()
@@ -46,9 +49,25 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
       if (err.code === '23505') setError('Another member with this phone number already exists.')
       else setError(err.message)
       setLoading(false)
-    } else {
-      onSuccess()
+      return
     }
+
+    // Handle profile image change
+    if (profileChange instanceof Blob) {
+      const path = `${member.id}/profile.jpg`
+      const { error: uploadErr } = await supabase.storage
+        .from('member-photos')
+        .upload(path, profileChange, { contentType: 'image/jpeg', upsert: true })
+      if (!uploadErr) {
+        const { data: { publicUrl } } = supabase.storage.from('member-photos').getPublicUrl(path)
+        await supabase.from('members').update({ profile_image_url: publicUrl }).eq('id', member.id)
+      }
+    } else if (profileChange === null) {
+      await supabase.storage.from('member-photos').remove([`${member.id}/profile.jpg`])
+      await supabase.from('members').update({ profile_image_url: null }).eq('id', member.id)
+    }
+
+    onSuccess()
   }
 
   const labelStyle = { display: 'block', color: 'var(--text-muted)', fontSize: '0.75rem', fontFamily: 'Rajdhani', fontWeight: 600, letterSpacing: '0.08em', marginBottom: '0.4rem' } as React.CSSProperties
@@ -66,6 +85,15 @@ export default function EditMemberModal({ member, onClose, onSuccess }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label style={labelStyle}>PROFILE PHOTO</label>
+            <ProfileImageUpload
+              currentUrl={member.profile_image_url ?? null}
+              gender={form.gender as 'Male' | 'Female'}
+              onChange={blob => setProfileChange(blob)}
+            />
+          </div>
+
           <div>
             <label style={labelStyle}>FULL NAME *</label>
             <input className="gym-input" value={form.full_name} onChange={e => set('full_name', e.target.value)} required />

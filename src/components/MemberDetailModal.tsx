@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPKR, formatDate, buildWhatsAppUrl } from '@/lib/utils'
 import type { Member } from '@/types'
+import MemberAvatar from '@/components/MemberAvatar'
 
 interface FeeRecord {
   id: string
@@ -121,19 +122,22 @@ export default function MemberDetailModal({ member, onClose, onFeeAdded }: Props
           {/* ── Header ──────────────────────────────────────── */}
           <div className="p-5 md:p-6 flex items-start justify-between gap-4 shrink-0"
             style={{ borderBottom: '1px solid var(--border)' }}>
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h2 className="text-xl md:text-2xl truncate" style={{ fontFamily: 'Rajdhani', fontWeight: 700 }}>
-                  {member.full_name}
-                </h2>
-                <span className={member.gender === 'Male' ? 'badge-male' : 'badge-female'}>{member.gender}</span>
-                <span className={status === 'overdue' ? 'badge-overdue' : status === 'due_soon' ? 'badge-due-soon' : 'badge-paid'}>
-                  {status === 'overdue' ? 'OVERDUE' : status === 'due_soon' ? 'DUE SOON' : 'PAID'}
-                </span>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <MemberAvatar member={member} size={64} style={{ flexShrink: 0 }} />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <h2 className="text-xl md:text-2xl truncate" style={{ fontFamily: 'Rajdhani', fontWeight: 700 }}>
+                    {member.full_name}
+                  </h2>
+                  <span className={member.gender === 'Male' ? 'badge-male' : 'badge-female'}>{member.gender}</span>
+                  <span className={status === 'overdue' ? 'badge-overdue' : status === 'due_soon' ? 'badge-due-soon' : 'badge-paid'}>
+                    {status === 'overdue' ? 'OVERDUE' : status === 'due_soon' ? 'DUE SOON' : 'PAID'}
+                  </span>
+                </div>
+                {member.father_name && (
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>S/O {member.father_name}</p>
+                )}
               </div>
-              {member.father_name && (
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>S/O {member.father_name}</p>
-              )}
             </div>
             <button onClick={onClose} className="btn-ghost shrink-0" style={{ padding: '0.4rem' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

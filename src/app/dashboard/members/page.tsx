@@ -7,6 +7,7 @@ import type { Member } from '@/types'
 import AddFeeModal from '@/components/AddFeeModal'
 import EditMemberModal from '@/components/EditMemberModal'
 import MemberDetailModal from '@/components/MemberDetailModal'
+import MemberAvatar from '@/components/MemberAvatar'
 import Link from 'next/link'
 
 type Filter = 'all' | 'overdue' | 'paid' | 'due_soon' | 'male' | 'female'
@@ -322,12 +323,15 @@ export default function MembersPage() {
                 {!loading && paginated.map(m => (
                   <tr key={m.id}>
                     <td>
-                      <button onClick={() => setDetailModal(m)} className="text-left group"
+                      <button onClick={() => setDetailModal(m)} className="text-left group flex items-center gap-2.5"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                        <div className="font-semibold text-sm group-hover:underline" style={{ color: 'var(--text-primary)', textDecorationColor: '#6B8FFF' }}>
-                          {m.full_name}
+                        <MemberAvatar member={m} size={34} style={{ flexShrink: 0 }} />
+                        <div>
+                          <div className="font-semibold text-sm group-hover:underline" style={{ color: 'var(--text-primary)', textDecorationColor: '#6B8FFF' }}>
+                            {m.full_name}
+                          </div>
+                          {m.father_name && <div className="text-xs" style={{ color: 'var(--text-muted)' }}>S/O {m.father_name}</div>}
                         </div>
-                        {m.father_name && <div className="text-xs" style={{ color: 'var(--text-muted)' }}>S/O {m.father_name}</div>}
                       </button>
                     </td>
                     <td><PhoneCell m={m} /></td>
@@ -376,12 +380,15 @@ export default function MembersPage() {
 
                 {/* Name row */}
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <button onClick={() => setDetailModal(m)} className="text-left"
+                  <button onClick={() => setDetailModal(m)} className="text-left flex items-center gap-2.5"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    <div className="font-semibold" style={{ fontSize: '0.975rem', color: 'var(--text-primary)' }}>{m.full_name}</div>
-                    {m.father_name && (
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>S/O {m.father_name}</div>
-                    )}
+                    <MemberAvatar member={m} size={42} style={{ flexShrink: 0 }} />
+                    <div>
+                      <div className="font-semibold" style={{ fontSize: '0.975rem', color: 'var(--text-primary)' }}>{m.full_name}</div>
+                      {m.father_name && (
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>S/O {m.father_name}</div>
+                      )}
+                    </div>
                   </button>
                   <div className="flex flex-col items-end gap-1">
                     <StatusBadge m={m} />

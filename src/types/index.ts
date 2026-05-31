@@ -9,6 +9,7 @@ export interface Member {
   gender: 'Male' | 'Female'
   fee_amount: number
   registration_date: string
+  profile_image_url?: string | null
   created_at: string
   updated_at: string
   last_payment_date?: string | null

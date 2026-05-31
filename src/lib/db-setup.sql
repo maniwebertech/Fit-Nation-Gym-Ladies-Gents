@@ -92,6 +92,29 @@ GRANT SELECT ON members_with_payment_status TO authenticated;
 --   WHERE phone_number IS NOT NULL AND phone_number <> '';
 
 -- ============================================================
+-- MIGRATION: add member profile photo support
+-- Run this in Supabase SQL Editor if the table already exists
+-- ============================================================
+-- Step 1: Add profile_image_url column
+-- ALTER TABLE members ADD COLUMN IF NOT EXISTS profile_image_url TEXT;
+--
+-- Step 2: Create member-photos storage bucket
+-- INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+-- VALUES ('member-photos', 'member-photos', true, 5242880,
+--   ARRAY['image/jpeg','image/png','image/webp'])
+-- ON CONFLICT (id) DO NOTHING;
+--
+-- Step 3: Storage RLS policies
+-- CREATE POLICY "auth_upload_member_photos" ON storage.objects
+--   FOR INSERT TO authenticated WITH CHECK (bucket_id = 'member-photos');
+-- CREATE POLICY "public_read_member_photos" ON storage.objects
+--   FOR SELECT TO public USING (bucket_id = 'member-photos');
+-- CREATE POLICY "auth_update_member_photos" ON storage.objects
+--   FOR UPDATE TO authenticated USING (bucket_id = 'member-photos');
+-- CREATE POLICY "auth_delete_member_photos" ON storage.objects
+--   FOR DELETE TO authenticated USING (bucket_id = 'member-photos');
+
+-- ============================================================
 -- MIGRATION: add receipt image support
 -- Run this in Supabase SQL Editor if the table already exists
 -- ============================================================

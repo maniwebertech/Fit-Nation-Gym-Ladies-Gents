@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { COUNTRY_CODES } from '@/lib/utils'
 import { format } from 'date-fns'
+import ProfileImageUpload from '@/components/ProfileImageUpload'
 
 export default function RegisterPage() {
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -12,6 +13,7 @@ export default function RegisterPage() {
     email: '', address: '', gender: 'Male', fee_amount: 3000,
     registration_date: today,
   })
+  const [profileBlob, setProfileBlob] = useState<Blob | null>(null)
   const [recordPayment, setRecordPayment] = useState(true)
   const [paymentAmount, setPaymentAmount] = useState(3000)
   const [paymentDate, setPaymentDate] = useState(today)
@@ -61,7 +63,19 @@ export default function RegisterPage() {
       return
     }
 
-    // 2. Insert first fee payment if opted in
+    // 2. Upload profile photo if selected
+    if (profileBlob && newMember) {
+      const path = `${newMember.id}/profile.jpg`
+      const { error: uploadErr } = await supabase.storage
+        .from('member-photos')
+        .upload(path, profileBlob, { contentType: 'image/jpeg', upsert: true })
+      if (!uploadErr) {
+        const { data: { publicUrl } } = supabase.storage.from('member-photos').getPublicUrl(path)
+        await supabase.from('members').update({ profile_image_url: publicUrl }).eq('id', newMember.id)
+      }
+    }
+
+    // 3. Insert first fee payment if opted in
     if (recordPayment && newMember) {
       const { error: feeErr } = await supabase.from('fee_payments').insert({
         member_id: newMember.id,
@@ -83,6 +97,7 @@ export default function RegisterPage() {
   function reset() {
     setSuccess(false)
     setForm({ full_name: '', father_name: '', phone_country_code: '+92', phone_number: '', email: '', address: '', gender: 'Male', fee_amount: 3000, registration_date: today })
+    setProfileBlob(null)
     setRecordPayment(true)
     setPaymentAmount(3000)
     setPaymentDate(today)
@@ -133,6 +148,15 @@ export default function RegisterPage() {
             </p>
 
             <div className="space-y-5">
+              <div>
+                <label style={labelStyle}>PROFILE PHOTO</label>
+                <ProfileImageUpload
+                  currentUrl={null}
+                  gender={form.gender as 'Male' | 'Female'}
+                  onChange={setProfileBlob}
+                />
+              </div>
+
               <div>
                 <label style={labelStyle}>FULL NAME *</label>
                 <input className="gym-input" placeholder="e.g. Muhammad Ali Khan" value={form.full_name}
