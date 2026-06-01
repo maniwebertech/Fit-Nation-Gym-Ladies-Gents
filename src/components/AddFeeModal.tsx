@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { format } from 'date-fns'
 import type { Member } from '@/types'
+import { getPKTDateString } from '@/lib/utils'
 
 interface Props {
   preselectedMember?: Member
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: Props) {
-  const today = format(new Date(), 'yyyy-MM-dd')
+  const today = getPKTDateString()
   const [search, setSearch] = useState('')
   const [suggestions, setSuggestions] = useState<Member[]>([])
   const [selected, setSelected] = useState<Member | null>(preselectedMember?.id ? preselectedMember : null)

@@ -3,53 +3,77 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { formatPKR } from '@/lib/utils'
+import { formatPKR, getPeriodDates, type PeriodFilter } from '@/lib/utils'
 import AddFeeModal from '@/components/AddFeeModal'
 
-interface Stats {
-  total: number
-  male: number
-  female: number
-  overdue: number
-  paid_this_month: number
-  revenue_this_month: number
-}
+interface GlobalStats { total: number; male: number; female: number }
+interface FilteredStats { overdue: number; paid: number; revenue: number; due_soon: number }
+
+const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
+  { value: 'current_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'last_6_months', label: 'Last 6 Months' },
+  { value: 'last_year', label: 'Last Year' },
+  { value: 'custom', label: 'Custom' },
+]
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({ total: 0, male: 0, female: 0, overdue: 0, paid_this_month: 0, revenue_this_month: 0 })
-  const [loading, setLoading] = useState(true)
+  const [globalStats, setGlobalStats] = useState<GlobalStats>({ total: 0, male: 0, female: 0 })
+  const [filteredStats, setFilteredStats] = useState<FilteredStats>({ overdue: 0, paid: 0, revenue: 0, due_soon: 0 })
+  const [period, setPeriod] = useState<PeriodFilter>('current_month')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [globalLoading, setGlobalLoading] = useState(true)
+  const [filteredLoading, setFilteredLoading] = useState(true)
   const [showFeeModal, setShowFeeModal] = useState(false)
-  const supabase = createClient()
+  const [refreshKey, setRefreshKey] = useState(0)
 
+  const periodLabel = PERIOD_OPTIONS.find(o => o.value === period)?.label ?? ''
+
+  // Global stats — total/gents/ladies never change with period filter
   useEffect(() => {
-    async function load() {
-      const [membersRes, paymentsRes] = await Promise.all([
-        supabase.from('members_with_payment_status').select('*'),
-        supabase.from('fee_payments').select('amount, payment_date').gte('payment_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
-      ])
-      const members = (membersRes.data || []) as Array<{gender: string; is_overdue: boolean}>
-      const payments = (paymentsRes.data || []) as Array<{amount: number}>
-      setStats({
+    const supabase = createClient()
+    supabase.from('members').select('gender').then(({ data }) => {
+      const members = (data || []) as Array<{ gender: string }>
+      setGlobalStats({
         total: members.length,
-        male: members.filter((m) => m.gender === 'Male').length,
-        female: members.filter((m) => m.gender === 'Female').length,
-        overdue: members.filter((m) => m.is_overdue).length,
-        paid_this_month: payments.length,
-        revenue_this_month: payments.reduce((s, p) => s + (p.amount || 0), 0)
+        male: members.filter(m => m.gender === 'Male').length,
+        female: members.filter(m => m.gender === 'Female').length,
       })
-      setLoading(false)
-    }
-    load()
-  }, [])
+      setGlobalLoading(false)
+    })
+  }, [refreshKey])
 
-  const statCards = [
-    { label: 'Total Members', value: stats.total, icon: '👥', color: '#6B8FFF', bg: 'rgba(27,63,204,0.12)' },
-    { label: 'Gents', value: stats.male, icon: '♂', color: '#6B8FFF', bg: 'rgba(27,63,204,0.08)' },
-    { label: 'Ladies', value: stats.female, icon: '♀', color: '#FF64B4', bg: 'rgba(255,100,180,0.08)' },
-    { label: 'Overdue', value: stats.overdue, icon: '⚠', color: '#FF3B5C', bg: 'rgba(255,59,92,0.10)' },
-    { label: 'Paid This Month', value: stats.paid_this_month, icon: '✓', color: '#39FF14', bg: 'rgba(57,255,20,0.08)' },
-    { label: 'Revenue This Month', value: formatPKR(stats.revenue_this_month), icon: '₨', color: '#39FF14', bg: 'rgba(57,255,20,0.08)', wide: true },
-  ]
+  // Filtered stats — reload when period, custom dates, or refreshKey changes
+  useEffect(() => {
+    if (period === 'custom' && (!customStart || !customEnd)) {
+      setFilteredLoading(false)
+      return
+    }
+    const { start, end } = getPeriodDates(period, customStart, customEnd)
+    if (!start || !end) { setFilteredLoading(false); return }
+
+    let cancelled = false
+    setFilteredLoading(true)
+    const supabase = createClient()
+
+    Promise.all([
+      supabase.from('members_with_payment_status').select('is_overdue, days_remaining'),
+      supabase.from('fee_payments').select('amount').gte('payment_date', start).lte('payment_date', end),
+    ]).then(([membersRes, paymentsRes]) => {
+      if (cancelled) return
+      const members = (membersRes.data || []) as Array<{ is_overdue: boolean; days_remaining: number | null }>
+      const payments = (paymentsRes.data || []) as Array<{ amount: number }>
+      setFilteredStats({
+        overdue: members.filter(m => m.is_overdue).length,
+        paid: payments.length,
+        revenue: payments.reduce((s, p) => s + (p.amount || 0), 0),
+        due_soon: members.filter(m => m.days_remaining !== null && m.days_remaining >= 0 && m.days_remaining <= 7).length,
+      })
+      setFilteredLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [period, customStart, customEnd, refreshKey])
 
   return (
     <div className="p-6 max-w-7xl mx-auto animate-fade-in">
@@ -57,14 +81,11 @@ export default function DashboardPage() {
       <div className="mb-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
-            <h1 className="text-3xl" style={{ fontFamily: 'Rajdhani', fontWeight: 700 }}>
-              DASHBOARD
-            </h1>
+            <h1 className="text-3xl" style={{ fontFamily: 'Rajdhani', fontWeight: 700 }}>DASHBOARD</h1>
             <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-              {new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              {new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Karachi' })}
             </p>
           </div>
-          {/* Desktop buttons */}
           <div className="hidden md:flex gap-3 shrink-0">
             <button onClick={() => setShowFeeModal(true)} className="btn-green">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -81,7 +102,6 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
-        {/* Mobile buttons — full width below title */}
         <div className="flex gap-3 md:hidden">
           <button onClick={() => setShowFeeModal(true)} className="btn-green flex-1 justify-center">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -99,37 +119,100 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-        {statCards.map(card => (
-          <div key={card.label} className={`gym-card p-5 ${card.wide ? 'lg:col-span-2' : ''}`}
-            style={{ background: card.bg }}>
+      {/* ── Global Stats — always overall count, no filter ── */}
+      <div className="grid grid-cols-3 gap-4 mb-5">
+        {([
+          { label: 'Total Members', value: globalStats.total, icon: '👥', color: '#6B8FFF', bg: 'rgba(27,63,204,0.12)' },
+          { label: 'Gents', value: globalStats.male, icon: '♂', color: '#6B8FFF', bg: 'rgba(27,63,204,0.08)' },
+          { label: 'Ladies', value: globalStats.female, icon: '♀', color: '#FF64B4', bg: 'rgba(255,100,180,0.08)' },
+        ] as const).map(card => (
+          <div key={card.label} className="gym-card p-5" style={{ background: card.bg }}>
             <div className="text-2xl mb-2">{card.icon}</div>
             <div className="text-2xl font-bold" style={{ fontFamily: 'Rajdhani', color: card.color }}>
-              {loading ? '—' : card.value}
+              {globalLoading ? '—' : card.value}
             </div>
             <div className="text-xs mt-1" style={{ color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{card.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Quick Actions */}
+      {/* ── Period Filter ── */}
+      <div className="gym-card p-4 mb-4">
+        <div className="flex flex-wrap gap-2">
+          {PERIOD_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setPeriod(opt.value)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+              style={{
+                fontFamily: 'Rajdhani',
+                letterSpacing: '0.06em',
+                background: period === opt.value ? 'rgba(27,63,204,0.35)' : 'transparent',
+                color: period === opt.value ? '#8FA3FF' : 'var(--text-muted)',
+                border: period === opt.value ? '1px solid rgba(27,63,204,0.6)' : '1px solid var(--border)',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {period === 'custom' && (
+          <div className="flex flex-wrap gap-3 mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Rajdhani', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>FROM</span>
+              <input
+                type="date"
+                className="gym-input"
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', width: 'auto' }}
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'Rajdhani', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>TO</span>
+              <input
+                type="date"
+                className="gym-input"
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', width: 'auto' }}
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Filtered Stats — change with period ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {([
+          { label: 'Overdue', sub: 'Currently', value: filteredStats.overdue, icon: '⚠', color: '#FF3B5C', bg: 'rgba(255,59,92,0.10)' },
+          { label: 'Paid', sub: periodLabel, value: filteredStats.paid, icon: '✓', color: '#39FF14', bg: 'rgba(57,255,20,0.08)' },
+          { label: 'Revenue', sub: periodLabel, value: formatPKR(filteredStats.revenue), icon: '₨', color: '#39FF14', bg: 'rgba(57,255,20,0.08)' },
+          { label: 'Due Soon', sub: 'Next 7 days', value: filteredStats.due_soon, icon: '🔔', color: '#FFB800', bg: 'rgba(255,184,0,0.10)' },
+        ] as const).map(card => (
+          <div key={card.label} className="gym-card p-5" style={{ background: card.bg }}>
+            <div className="text-2xl mb-2">{card.icon}</div>
+            <div className="text-2xl font-bold" style={{ fontFamily: 'Rajdhani', color: card.color }}>
+              {filteredLoading ? '—' : card.value}
+            </div>
+            <div className="text-xs mt-1" style={{ color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+              {card.label}
+              <span className="ml-1" style={{ opacity: 0.65 }}>· {card.sub}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick Actions + Gym Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="gym-card p-6">
           <h3 className="text-lg mb-4" style={{ fontFamily: 'Rajdhani', color: 'var(--text-secondary)', letterSpacing: '0.08em' }}>QUICK ACTIONS</h3>
           <div className="space-y-3">
-            <button onClick={() => setShowFeeModal(true)} className="btn-green w-full justify-center">
-              Record Fee Payment
-            </button>
-            <Link href="/dashboard/register" className="btn-primary w-full justify-center" style={{ display: 'flex' }}>
-              Register New Member
-            </Link>
-            <Link href="/dashboard/members" className="btn-ghost w-full justify-center">
-              View All Members
-            </Link>
+            <button onClick={() => setShowFeeModal(true)} className="btn-green w-full justify-center">Record Fee Payment</button>
+            <Link href="/dashboard/register" className="btn-primary w-full justify-center" style={{ display: 'flex' }}>Register New Member</Link>
+            <Link href="/dashboard/members" className="btn-ghost w-full justify-center">View All Members</Link>
           </div>
         </div>
-
         <div className="gym-card p-6">
           <h3 className="text-lg mb-4" style={{ fontFamily: 'Rajdhani', color: 'var(--text-secondary)', letterSpacing: '0.08em' }}>GYM INFO</h3>
           <div className="space-y-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -149,7 +232,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {showFeeModal && <AddFeeModal onClose={() => setShowFeeModal(false)} onSuccess={() => { setShowFeeModal(false) }} />}
+      {showFeeModal && (
+        <AddFeeModal
+          onClose={() => setShowFeeModal(false)}
+          onSuccess={() => { setShowFeeModal(false); setRefreshKey(k => k + 1) }}
+        />
+      )}
     </div>
   )
 }

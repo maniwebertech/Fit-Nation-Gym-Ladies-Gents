@@ -83,6 +83,42 @@ LEFT JOIN LATERAL (
 GRANT SELECT ON members_with_payment_status TO authenticated;
 
 -- ============================================================
+-- MIGRATION: PKT timezone (Pakistan Standard Time UTC+5)
+-- Run ALL of these in Supabase SQL Editor → must be done once manually
+-- ============================================================
+-- Step 1: Set database timezone
+-- ALTER DATABASE postgres SET timezone TO 'Asia/Karachi';
+--
+-- Step 2: Set per-role timezone (ensures sessions inherit PKT)
+-- ALTER ROLE authenticator SET timezone TO 'Asia/Karachi';
+-- ALTER ROLE authenticated SET timezone TO 'Asia/Karachi';
+-- ALTER ROLE anon SET timezone TO 'Asia/Karachi';
+-- ALTER ROLE service_role SET timezone TO 'Asia/Karachi';
+--
+-- Step 3: Rebuild view to use explicit PKT timezone (no CURRENT_DATE drift)
+-- CREATE OR REPLACE VIEW members_with_payment_status AS
+-- SELECT
+--   m.*,
+--   fp.payment_date AS last_payment_date,
+--   fp.amount AS last_payment_amount,
+--   (fp.payment_date + INTERVAL '1 month')::DATE AS next_due_date,
+--   EXTRACT(DAY FROM (fp.payment_date + INTERVAL '1 month') - (NOW() AT TIME ZONE 'Asia/Karachi')::DATE)::INTEGER AS days_remaining,
+--   CASE
+--     WHEN fp.payment_date IS NULL THEN TRUE
+--     WHEN (fp.payment_date + INTERVAL '1 month')::DATE < (NOW() AT TIME ZONE 'Asia/Karachi')::DATE THEN TRUE
+--     ELSE FALSE
+--   END AS is_overdue
+-- FROM members m
+-- LEFT JOIN LATERAL (
+--   SELECT payment_date, amount
+--   FROM fee_payments
+--   WHERE member_id = m.id
+--   ORDER BY payment_date DESC
+--   LIMIT 1
+-- ) fp ON true;
+-- GRANT SELECT ON members_with_payment_status TO authenticated;
+
+-- ============================================================
 -- MIGRATION: make phone optional (skip if fresh install)
 -- ============================================================
 -- ALTER TABLE members ALTER COLUMN phone_number DROP NOT NULL;
