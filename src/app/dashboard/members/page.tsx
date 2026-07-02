@@ -154,11 +154,10 @@ export default function MembersPage() {
   const [sortField, setSortField] = useState<SortField>('last_activity')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
-  // Advanced filter (who paid within a date range + status) — draft values, applied on "Filter"
+  // Advanced filter (who paid within a date range) — draft values, applied on "Filter"
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd] = useState('')
-  const [rangeStatus, setRangeStatus] = useState<'all' | 'overdue' | 'due_soon' | 'paid'>('all')
-  const [applied, setApplied] = useState<{ start: string; end: string; status: 'all' | 'overdue' | 'due_soon' | 'paid' } | null>(null)
+  const [applied, setApplied] = useState<{ start: string; end: string } | null>(null)
   // Member IDs who have a fee payment within the applied date range (null = no date range applied)
   const [paidIds, setPaidIds] = useState<Set<string> | null>(null)
   const [applying, setApplying] = useState(false)
@@ -189,7 +188,7 @@ export default function MembersPage() {
     } else {
       setPaidIds(null)
     }
-    setApplied({ start: rangeStart, end: rangeEnd, status: rangeStatus })
+    setApplied({ start: rangeStart, end: rangeEnd })
     setPage(1)
     setApplying(false)
   }
@@ -197,7 +196,6 @@ export default function MembersPage() {
   function clearRange() {
     setRangeStart('')
     setRangeEnd('')
-    setRangeStatus('all')
     setApplied(null)
     setPaidIds(null)
     setPage(1)
@@ -223,14 +221,8 @@ export default function MembersPage() {
       filter === 'male' ? m.gender === 'Male' :
       filter === 'female' ? m.gender === 'Female' : true
 
-    let matchRange = true
-    if (applied) {
-      // Members who paid within the selected date range
-      if (paidIds) matchRange = matchRange && paidIds.has(m.id)
-      if (applied.status === 'overdue') matchRange = matchRange && !!m.is_overdue
-      else if (applied.status === 'paid') matchRange = matchRange && status === 'paid'
-      else if (applied.status === 'due_soon') matchRange = matchRange && status === 'due_soon'
-    }
+    // Members who paid within the selected date range
+    const matchRange = !applied || !paidIds || paidIds.has(m.id)
     return matchSearch && matchFilter && matchRange
   }).sort((a, b) => {
     let va: string | number
@@ -357,21 +349,11 @@ export default function MembersPage() {
             <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
               value={rangeEnd} min={rangeStart || undefined} onChange={e => setRangeEnd(e.target.value)} />
           </div>
-          <div className="flex flex-col gap-1">
-            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>STATUS</label>
-            <select className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
-              value={rangeStatus} onChange={e => setRangeStatus(e.target.value as typeof rangeStatus)}>
-              <option value="all">All</option>
-              <option value="overdue">Overdue</option>
-              <option value="due_soon">Due Soon</option>
-              <option value="paid">Paid</option>
-            </select>
-          </div>
           <button onClick={applyRange} disabled={applying} className="btn-primary" style={{ fontSize: '0.82rem', padding: '0.5rem 1.1rem' }}>
             {applying ? 'Filtering…' : 'Filter'}
           </button>
           <button onClick={clearRange} className="btn-ghost" style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}
-            disabled={!applied && !rangeStart && !rangeEnd && rangeStatus === 'all'}>
+            disabled={!applied && !rangeStart && !rangeEnd}>
             Clear
           </button>
           {applied && (
