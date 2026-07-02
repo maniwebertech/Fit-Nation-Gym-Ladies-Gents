@@ -59,6 +59,9 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- View: members with last payment info and payment status
+-- last_activity = most recent change to a member's record: a member add/detail edit
+-- (m.updated_at) OR a fee being added (latest fee_payments.created_at). Drives the
+-- default "recently updated on top" sort on the Members page.
 CREATE OR REPLACE VIEW members_with_payment_status AS
 SELECT
   m.*,
@@ -70,10 +73,12 @@ SELECT
     WHEN fp.payment_date IS NULL THEN TRUE
     WHEN (fp.payment_date + INTERVAL '1 month')::DATE < CURRENT_DATE THEN TRUE
     ELSE FALSE
-  END AS is_overdue
+  END AS is_overdue,
+  GREATEST(m.updated_at, COALESCE(fp.last_fee_created_at, m.updated_at)) AS last_activity
 FROM members m
 LEFT JOIN LATERAL (
-  SELECT payment_date, amount
+  SELECT payment_date, amount,
+    (SELECT MAX(created_at) FROM fee_payments WHERE member_id = m.id) AS last_fee_created_at
   FROM fee_payments
   WHERE member_id = m.id
   ORDER BY payment_date DESC
@@ -81,6 +86,35 @@ LEFT JOIN LATERAL (
 ) fp ON true;
 
 GRANT SELECT ON members_with_payment_status TO authenticated;
+
+-- ============================================================
+-- MIGRATION: add last_activity to the view (recently-updated sort)
+-- Run this in Supabase SQL Editor if the view already exists.
+-- Adds a last_activity column = latest of member updated_at and latest fee created_at.
+-- ============================================================
+-- CREATE OR REPLACE VIEW members_with_payment_status AS
+-- SELECT
+--   m.*,
+--   fp.payment_date AS last_payment_date,
+--   fp.amount AS last_payment_amount,
+--   (fp.payment_date + INTERVAL '1 month')::DATE AS next_due_date,
+--   EXTRACT(DAY FROM (fp.payment_date + INTERVAL '1 month') - CURRENT_DATE)::INTEGER AS days_remaining,
+--   CASE
+--     WHEN fp.payment_date IS NULL THEN TRUE
+--     WHEN (fp.payment_date + INTERVAL '1 month')::DATE < CURRENT_DATE THEN TRUE
+--     ELSE FALSE
+--   END AS is_overdue,
+--   GREATEST(m.updated_at, COALESCE(fp.last_fee_created_at, m.updated_at)) AS last_activity
+-- FROM members m
+-- LEFT JOIN LATERAL (
+--   SELECT payment_date, amount,
+--     (SELECT MAX(created_at) FROM fee_payments WHERE member_id = m.id) AS last_fee_created_at
+--   FROM fee_payments
+--   WHERE member_id = m.id
+--   ORDER BY payment_date DESC
+--   LIMIT 1
+-- ) fp ON true;
+-- GRANT SELECT ON members_with_payment_status TO authenticated;
 
 -- ============================================================
 -- MIGRATION: PKT timezone (Pakistan Standard Time UTC+5)

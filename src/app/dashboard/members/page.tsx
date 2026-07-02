@@ -11,7 +11,16 @@ import MemberAvatar from '@/components/MemberAvatar'
 import Link from 'next/link'
 
 type Filter = 'all' | 'overdue' | 'paid' | 'due_soon' | 'male' | 'female'
-type SortField = 'full_name' | 'phone_number' | 'gender' | 'fee_amount' | 'last_payment_date' | 'next_due_date' | 'days_remaining' | 'is_overdue'
+type SortField = 'full_name' | 'phone_number' | 'gender' | 'fee_amount' | 'last_payment_date' | 'next_due_date' | 'days_remaining' | 'is_overdue' | 'last_activity'
+
+// Most-recent activity timestamp for a member: latest of a detail update (member added
+// or edited) and their latest fee (added). Used for the default "recently updated" sort.
+// Falls back to updated_at when the view hasn't been migrated to expose last_activity yet.
+function activityTime(m: Member): number {
+  const t = m.last_activity ?? m.updated_at
+  const ms = t ? Date.parse(t) : NaN
+  return Number.isNaN(ms) ? 0 : ms
+}
 
 const PAGE_SIZE = 20
 
@@ -142,7 +151,7 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
-  const [sortField, setSortField] = useState<SortField>('is_overdue')
+  const [sortField, setSortField] = useState<SortField>('last_activity')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
   const [feeModal, setFeeModal] = useState<Member | null>(null)
@@ -183,7 +192,10 @@ export default function MembersPage() {
   }).sort((a, b) => {
     let va: string | number
     let vb: string | number
-    if (sortField === 'is_overdue') {
+    if (sortField === 'last_activity') {
+      va = activityTime(a)
+      vb = activityTime(b)
+    } else if (sortField === 'is_overdue') {
       va = a.is_overdue ? 1 : 0
       vb = b.is_overdue ? 1 : 0
     } else {

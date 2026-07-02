@@ -17,6 +17,7 @@ export interface Member {
   next_due_date?: string | null
   days_remaining?: number | null
   is_overdue?: boolean
+  last_activity?: string | null
 }
 
 export interface FeePayment {
