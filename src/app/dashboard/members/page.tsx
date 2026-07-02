@@ -154,6 +154,11 @@ export default function MembersPage() {
   const [sortField, setSortField] = useState<SortField>('last_activity')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
+  // Advanced filter (date range on last-updated + status) — draft values, applied on "Filter"
+  const [rangeStart, setRangeStart] = useState('')
+  const [rangeEnd, setRangeEnd] = useState('')
+  const [rangeStatus, setRangeStatus] = useState<'all' | 'overdue' | 'due_soon' | 'paid'>('all')
+  const [applied, setApplied] = useState<{ start: string; end: string; status: 'all' | 'overdue' | 'due_soon' | 'paid' } | null>(null)
   const [feeModal, setFeeModal] = useState<Member | null>(null)
   const [editModal, setEditModal] = useState<Member | null>(null)
   const [detailModal, setDetailModal] = useState<Member | null>(null)
@@ -168,6 +173,19 @@ export default function MembersPage() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [filter, search])
+
+  function applyRange() {
+    setApplied({ start: rangeStart, end: rangeEnd, status: rangeStatus })
+    setPage(1)
+  }
+
+  function clearRange() {
+    setRangeStart('')
+    setRangeEnd('')
+    setRangeStatus('all')
+    setApplied(null)
+    setPage(1)
+  }
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -188,7 +206,17 @@ export default function MembersPage() {
       filter === 'due_soon' ? status === 'due_soon' :
       filter === 'male' ? m.gender === 'Male' :
       filter === 'female' ? m.gender === 'Female' : true
-    return matchSearch && matchFilter
+
+    let matchRange = true
+    if (applied) {
+      const t = activityTime(m)
+      if (applied.start) matchRange = matchRange && t >= Date.parse(`${applied.start}T00:00:00`)
+      if (applied.end) matchRange = matchRange && t <= Date.parse(`${applied.end}T23:59:59.999`)
+      if (applied.status === 'overdue') matchRange = matchRange && !!m.is_overdue
+      else if (applied.status === 'paid') matchRange = matchRange && status === 'paid'
+      else if (applied.status === 'due_soon') matchRange = matchRange && status === 'due_soon'
+    }
+    return matchSearch && matchFilter && matchRange
   }).sort((a, b) => {
     let va: string | number
     let vb: string | number
@@ -300,6 +328,42 @@ export default function MembersPage() {
               {f.label} ({counts[f.key]})
             </button>
           ))}
+        </div>
+
+        {/* ── Advanced filter: last-updated date range + status ── */}
+        <div className="gym-card flex flex-wrap items-end gap-3 p-3">
+          <div className="flex flex-col gap-1">
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>UPDATED FROM</label>
+            <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
+              value={rangeStart} max={rangeEnd || undefined} onChange={e => setRangeStart(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>UPDATED TO</label>
+            <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
+              value={rangeEnd} min={rangeStart || undefined} onChange={e => setRangeEnd(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>STATUS</label>
+            <select className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
+              value={rangeStatus} onChange={e => setRangeStatus(e.target.value as typeof rangeStatus)}>
+              <option value="all">All</option>
+              <option value="overdue">Overdue</option>
+              <option value="due_soon">Due Soon</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <button onClick={applyRange} className="btn-primary" style={{ fontSize: '0.82rem', padding: '0.5rem 1.1rem' }}>
+            Filter
+          </button>
+          <button onClick={clearRange} className="btn-ghost" style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}
+            disabled={!applied && !rangeStart && !rangeEnd && rangeStatus === 'all'}>
+            Clear
+          </button>
+          {applied && (
+            <span style={{ fontSize: '0.78rem', color: '#39FF14', fontFamily: 'Rajdhani', fontWeight: 600, alignSelf: 'center' }}>
+              Filter active — {filtered.length} match{filtered.length === 1 ? '' : 'es'}
+            </span>
+          )}
         </div>
       </div>
 
