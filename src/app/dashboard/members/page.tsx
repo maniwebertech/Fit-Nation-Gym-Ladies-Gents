@@ -154,11 +154,14 @@ export default function MembersPage() {
   const [sortField, setSortField] = useState<SortField>('last_activity')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
-  // Advanced filter (date range on last-updated + status) — draft values, applied on "Filter"
+  // Advanced filter (who paid within a date range + status) — draft values, applied on "Filter"
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd] = useState('')
   const [rangeStatus, setRangeStatus] = useState<'all' | 'overdue' | 'due_soon' | 'paid'>('all')
   const [applied, setApplied] = useState<{ start: string; end: string; status: 'all' | 'overdue' | 'due_soon' | 'paid' } | null>(null)
+  // Member IDs who have a fee payment within the applied date range (null = no date range applied)
+  const [paidIds, setPaidIds] = useState<Set<string> | null>(null)
+  const [applying, setApplying] = useState(false)
   const [feeModal, setFeeModal] = useState<Member | null>(null)
   const [editModal, setEditModal] = useState<Member | null>(null)
   const [detailModal, setDetailModal] = useState<Member | null>(null)
@@ -174,9 +177,21 @@ export default function MembersPage() {
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [filter, search])
 
-  function applyRange() {
+  async function applyRange() {
+    setApplying(true)
+    // If a date range is given, find members who paid within it
+    if (rangeStart || rangeEnd) {
+      let query = supabase.from('fee_payments').select('member_id')
+      if (rangeStart) query = query.gte('payment_date', rangeStart)
+      if (rangeEnd) query = query.lte('payment_date', rangeEnd)
+      const { data } = await query
+      setPaidIds(new Set((data || []).map(r => r.member_id as string)))
+    } else {
+      setPaidIds(null)
+    }
     setApplied({ start: rangeStart, end: rangeEnd, status: rangeStatus })
     setPage(1)
+    setApplying(false)
   }
 
   function clearRange() {
@@ -184,6 +199,7 @@ export default function MembersPage() {
     setRangeEnd('')
     setRangeStatus('all')
     setApplied(null)
+    setPaidIds(null)
     setPage(1)
   }
 
@@ -209,9 +225,8 @@ export default function MembersPage() {
 
     let matchRange = true
     if (applied) {
-      const t = activityTime(m)
-      if (applied.start) matchRange = matchRange && t >= Date.parse(`${applied.start}T00:00:00`)
-      if (applied.end) matchRange = matchRange && t <= Date.parse(`${applied.end}T23:59:59.999`)
+      // Members who paid within the selected date range
+      if (paidIds) matchRange = matchRange && paidIds.has(m.id)
       if (applied.status === 'overdue') matchRange = matchRange && !!m.is_overdue
       else if (applied.status === 'paid') matchRange = matchRange && status === 'paid'
       else if (applied.status === 'due_soon') matchRange = matchRange && status === 'due_soon'
@@ -330,15 +345,15 @@ export default function MembersPage() {
           ))}
         </div>
 
-        {/* ── Advanced filter: last-updated date range + status ── */}
+        {/* ── Advanced filter: who paid within a date range + status ── */}
         <div className="gym-card flex flex-wrap items-end gap-3 p-3">
           <div className="flex flex-col gap-1">
-            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>UPDATED FROM</label>
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>PAID FROM</label>
             <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
               value={rangeStart} max={rangeEnd || undefined} onChange={e => setRangeStart(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1">
-            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>UPDATED TO</label>
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>PAID TO</label>
             <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
               value={rangeEnd} min={rangeStart || undefined} onChange={e => setRangeEnd(e.target.value)} />
           </div>
@@ -352,15 +367,18 @@ export default function MembersPage() {
               <option value="paid">Paid</option>
             </select>
           </div>
-          <button onClick={applyRange} className="btn-primary" style={{ fontSize: '0.82rem', padding: '0.5rem 1.1rem' }}>
-            Filter
+          <button onClick={applyRange} disabled={applying} className="btn-primary" style={{ fontSize: '0.82rem', padding: '0.5rem 1.1rem' }}>
+            {applying ? 'Filtering…' : 'Filter'}
           </button>
           <button onClick={clearRange} className="btn-ghost" style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}
             disabled={!applied && !rangeStart && !rangeEnd && rangeStatus === 'all'}>
             Clear
           </button>
           {applied && (
-            <span style={{ fontSize: '0.78rem', color: '#39FF14', fontFamily: 'Rajdhani', fontWeight: 600, alignSelf: 'center' }}>
+            <span style={{
+              display: 'flex', alignItems: 'center', height: 38, alignSelf: 'flex-end',
+              fontSize: '0.78rem', color: '#39FF14', fontFamily: 'Rajdhani', fontWeight: 600,
+            }}>
               Filter active — {filtered.length} match{filtered.length === 1 ? '' : 'es'}
             </span>
           )}
