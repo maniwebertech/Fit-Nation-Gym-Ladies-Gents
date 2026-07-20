@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatPKR, formatDate, buildWhatsAppUrl } from '@/lib/utils'
+import { formatPKR, formatDate, buildWhatsAppUrl, isAdvancePayment } from '@/lib/utils'
 import type { Member } from '@/types'
 import MemberAvatar from '@/components/MemberAvatar'
 
@@ -9,6 +9,7 @@ interface FeeRecord {
   id: string
   amount: number
   payment_date: string
+  collected_on: string
   notes: string | null
   receipt_url: string | null
   created_at: string
@@ -68,7 +69,7 @@ export default function MemberDetailModal({ member, onClose, onFeeAdded }: Props
     setLoading(true)
     const { data } = await supabase
       .from('fee_payments')
-      .select('id, amount, payment_date, notes, receipt_url, created_at')
+      .select('id, amount, payment_date, collected_on, notes, receipt_url, created_at')
       .eq('member_id', member.id)
       .order('payment_date', { ascending: false })
     setPayments(data || [])
@@ -278,6 +279,11 @@ export default function MemberDetailModal({ member, onClose, onFeeAdded }: Props
                             </td>
                             <td style={{ padding: '0.75rem 1rem' }}>
                               <span className="font-semibold" style={{ fontSize: '0.9rem' }}>{formatDate(p.payment_date)}</span>
+                              {isAdvancePayment(p.payment_date, p.collected_on) && (
+                                <div style={{ fontSize: '0.68rem', color: '#A78BFA', fontWeight: 600, letterSpacing: '0.03em' }}>
+                                  ADVANCE · paid {formatDate(p.collected_on)}
+                                </div>
+                              )}
                             </td>
                             <td style={{ padding: '0.75rem 1rem' }}>
                               <span style={{ color: '#39FF14', fontFamily: 'Rajdhani', fontWeight: 700, fontSize: '1rem' }}>
@@ -332,6 +338,11 @@ export default function MemberDetailModal({ member, onClose, onFeeAdded }: Props
                               {formatPKR(p.amount)}
                             </span>
                           </div>
+                          {isAdvancePayment(p.payment_date, p.collected_on) && (
+                            <div style={{ fontSize: '0.68rem', color: '#A78BFA', fontWeight: 600, marginTop: 2 }}>
+                              ADVANCE · paid {formatDate(p.collected_on)}
+                            </div>
+                          )}
                           {p.notes && <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>{p.notes}</div>}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">

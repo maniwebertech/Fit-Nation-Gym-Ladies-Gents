@@ -25,14 +25,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS members_phone_unique
   WHERE phone_number IS NOT NULL AND phone_number <> '';
 
 -- Fee payments table
+-- payment_date  = COVERAGE month (which month the fee is FOR) — drives next-due / overdue
+-- collected_on  = the day the cash was actually RECEIVED — drives collection reports,
+--                 so an advance fee counts in the month the money arrived, not its future month
 CREATE TABLE IF NOT EXISTS fee_payments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   amount INTEGER NOT NULL,
   payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  collected_on DATE NOT NULL DEFAULT CURRENT_DATE,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS fee_payments_collected_on_idx ON fee_payments (collected_on);
 
 -- Enable Row Level Security
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
@@ -183,6 +188,17 @@ GRANT SELECT ON members_with_payment_status TO authenticated;
 --   FOR UPDATE TO authenticated USING (bucket_id = 'member-photos');
 -- CREATE POLICY "auth_delete_member_photos" ON storage.objects
 --   FOR DELETE TO authenticated USING (bucket_id = 'member-photos');
+
+-- ============================================================
+-- MIGRATION: add collected_on (actual cash date, separate from coverage month)
+-- Run this in Supabase SQL Editor if the table already exists.
+-- Backfill rule LEAST(payment_date, created_at): advance -> entry day; back-dated -> coverage month.
+-- ============================================================
+-- ALTER TABLE fee_payments ADD COLUMN IF NOT EXISTS collected_on DATE;
+-- UPDATE fee_payments SET collected_on = LEAST(payment_date, (created_at AT TIME ZONE 'Asia/Karachi')::date) WHERE collected_on IS NULL;
+-- ALTER TABLE fee_payments ALTER COLUMN collected_on SET DEFAULT CURRENT_DATE;
+-- ALTER TABLE fee_payments ALTER COLUMN collected_on SET NOT NULL;
+-- CREATE INDEX IF NOT EXISTS fee_payments_collected_on_idx ON fee_payments (collected_on);
 
 -- ============================================================
 -- MIGRATION: add receipt image support

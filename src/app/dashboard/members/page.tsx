@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatPKR, formatDate, buildWhatsAppUrl } from '@/lib/utils'
+import { formatPKR, formatDate, buildWhatsAppUrl, isAdvancePayment, isMemberInAdvance } from '@/lib/utils'
 import type { Member } from '@/types'
 import AddFeeModal from '@/components/AddFeeModal'
 import EditMemberModal from '@/components/EditMemberModal'
@@ -160,6 +160,8 @@ export default function MembersPage() {
   const [applied, setApplied] = useState<{ start: string; end: string } | null>(null)
   // Member IDs who have a fee payment within the applied date range (null = no date range applied)
   const [paidIds, setPaidIds] = useState<Set<string> | null>(null)
+  // Count of advance payments collected within the applied date range
+  const [rangeAdvance, setRangeAdvance] = useState(0)
   const [applying, setApplying] = useState(false)
   const [feeModal, setFeeModal] = useState<Member | null>(null)
   const [editModal, setEditModal] = useState<Member | null>(null)
@@ -178,15 +180,19 @@ export default function MembersPage() {
 
   async function applyRange() {
     setApplying(true)
-    // If a date range is given, find members who paid within it
+    // If a date range is given, find members whose cash was COLLECTED within it
+    // (collected_on), so advance fees land in the month the money actually arrived.
     if (rangeStart || rangeEnd) {
-      let query = supabase.from('fee_payments').select('member_id')
-      if (rangeStart) query = query.gte('payment_date', rangeStart)
-      if (rangeEnd) query = query.lte('payment_date', rangeEnd)
+      let query = supabase.from('fee_payments').select('member_id, payment_date, collected_on')
+      if (rangeStart) query = query.gte('collected_on', rangeStart)
+      if (rangeEnd) query = query.lte('collected_on', rangeEnd)
       const { data } = await query
-      setPaidIds(new Set((data || []).map(r => r.member_id as string)))
+      const rows = (data || []) as Array<{ member_id: string; payment_date: string; collected_on: string }>
+      setPaidIds(new Set(rows.map(r => r.member_id)))
+      setRangeAdvance(rows.filter(r => isAdvancePayment(r.payment_date, r.collected_on)).length)
     } else {
       setPaidIds(null)
+      setRangeAdvance(0)
     }
     setApplied({ start: rangeStart, end: rangeEnd })
     setPage(1)
@@ -198,6 +204,7 @@ export default function MembersPage() {
     setRangeEnd('')
     setApplied(null)
     setPaidIds(null)
+    setRangeAdvance(0)
     setPage(1)
   }
 
@@ -242,6 +249,9 @@ export default function MembersPage() {
   })
 
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // Members currently paid ahead (their latest coverage month is in the future)
+  const advanceMembers = members.filter(m => isMemberInAdvance(m.last_payment_date)).length
 
   const counts = {
     all: members.length,
@@ -291,6 +301,7 @@ export default function MembersPage() {
           <h1 className="text-2xl md:text-3xl" style={{ fontFamily: 'Rajdhani', fontWeight: 700 }}>MEMBERS</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {filtered.length} of {members.length} members
+            <span style={{ color: '#A78BFA' }}> · {advanceMembers} in advance</span>
           </p>
         </div>
         <div className="flex gap-2">
@@ -340,12 +351,12 @@ export default function MembersPage() {
         {/* ── Advanced filter: who paid within a date range + status ── */}
         <div className="gym-card flex flex-wrap items-end gap-3 p-3">
           <div className="flex flex-col gap-1">
-            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>PAID FROM</label>
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>COLLECTED FROM</label>
             <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
               value={rangeStart} max={rangeEnd || undefined} onChange={e => setRangeStart(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1">
-            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>PAID TO</label>
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>COLLECTED TO</label>
             <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
               value={rangeEnd} min={rangeStart || undefined} onChange={e => setRangeEnd(e.target.value)} />
           </div>
@@ -358,10 +369,11 @@ export default function MembersPage() {
           </button>
           {applied && (
             <span style={{
-              display: 'flex', alignItems: 'center', height: 38, alignSelf: 'flex-end',
+              display: 'flex', alignItems: 'center', gap: 8, height: 38, alignSelf: 'flex-end',
               fontSize: '0.78rem', color: '#39FF14', fontFamily: 'Rajdhani', fontWeight: 600,
             }}>
-              Filter active — {filtered.length} match{filtered.length === 1 ? '' : 'es'}
+              Filter active — {filtered.length} member{filtered.length === 1 ? '' : 's'} paid
+              <span style={{ color: '#A78BFA' }}>· {rangeAdvance} advance</span>
             </span>
           )}
         </div>

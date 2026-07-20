@@ -3,11 +3,11 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { formatPKR, getPeriodDates, type PeriodFilter } from '@/lib/utils'
+import { formatPKR, getPeriodDates, isAdvancePayment, type PeriodFilter } from '@/lib/utils'
 import AddFeeModal from '@/components/AddFeeModal'
 
 interface GlobalStats { total: number; male: number; female: number }
-interface FilteredStats { overdue: number; paid: number; revenue: number; due_soon: number }
+interface FilteredStats { overdue: number; paid: number; revenue: number; due_soon: number; advance: number; advance_amount: number }
 
 const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
   { value: 'current_month', label: 'This Month' },
@@ -19,7 +19,7 @@ const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
 
 export default function DashboardPage() {
   const [globalStats, setGlobalStats] = useState<GlobalStats>({ total: 0, male: 0, female: 0 })
-  const [filteredStats, setFilteredStats] = useState<FilteredStats>({ overdue: 0, paid: 0, revenue: 0, due_soon: 0 })
+  const [filteredStats, setFilteredStats] = useState<FilteredStats>({ overdue: 0, paid: 0, revenue: 0, due_soon: 0, advance: 0, advance_amount: 0 })
   const [period, setPeriod] = useState<PeriodFilter>('current_month')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
@@ -59,16 +59,21 @@ export default function DashboardPage() {
 
     Promise.all([
       supabase.from('members_with_payment_status').select('is_overdue, days_remaining'),
-      supabase.from('fee_payments').select('amount').gte('payment_date', start).lte('payment_date', end),
+      // Collection reports filter by collected_on (actual cash date), so an advance fee
+      // is counted in the month the money arrived — not its future coverage month.
+      supabase.from('fee_payments').select('member_id, amount, payment_date, collected_on').gte('collected_on', start).lte('collected_on', end),
     ]).then(([membersRes, paymentsRes]) => {
       if (cancelled) return
       const members = (membersRes.data || []) as Array<{ is_overdue: boolean; days_remaining: number | null }>
-      const payments = (paymentsRes.data || []) as Array<{ amount: number }>
+      const payments = (paymentsRes.data || []) as Array<{ member_id: string; amount: number; payment_date: string; collected_on: string }>
+      const advancePayments = payments.filter(p => isAdvancePayment(p.payment_date, p.collected_on))
       setFilteredStats({
         overdue: members.filter(m => m.is_overdue).length,
-        paid: payments.length,
-        revenue: payments.reduce((s, p) => s + (p.amount || 0), 0),
+        paid: new Set(payments.map(p => p.member_id)).size,   // distinct members who paid in the period
+        revenue: payments.reduce((s, p) => s + (p.amount || 0), 0),  // all cash collected, advance included
         due_soon: members.filter(m => m.days_remaining !== null && m.days_remaining >= 0 && m.days_remaining <= 7).length,
+        advance: advancePayments.length,
+        advance_amount: advancePayments.reduce((s, p) => s + (p.amount || 0), 0),
       })
       setFilteredLoading(false)
     })
@@ -183,11 +188,12 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Filtered Stats — change with period ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {([
           { label: 'Overdue', sub: 'Currently', value: filteredStats.overdue, icon: '⚠', color: '#FF3B5C', bg: 'rgba(255,59,92,0.10)' },
-          { label: 'Paid', sub: periodLabel, value: filteredStats.paid, icon: '✓', color: '#39FF14', bg: 'rgba(57,255,20,0.08)' },
+          { label: 'Members Paid', sub: periodLabel, value: filteredStats.paid, icon: '✓', color: '#39FF14', bg: 'rgba(57,255,20,0.08)' },
           { label: 'Revenue', sub: periodLabel, value: formatPKR(filteredStats.revenue), icon: '₨', color: '#39FF14', bg: 'rgba(57,255,20,0.08)' },
+          { label: 'Advance', sub: formatPKR(filteredStats.advance_amount), value: filteredStats.advance, icon: '⏭', color: '#A78BFA', bg: 'rgba(139,92,246,0.12)' },
           { label: 'Due Soon', sub: 'Next 7 days', value: filteredStats.due_soon, icon: '🔔', color: '#FFB800', bg: 'rgba(255,184,0,0.10)' },
         ] as const).map(card => (
           <div key={card.label} className="gym-card p-5" style={{ background: card.bg }}>

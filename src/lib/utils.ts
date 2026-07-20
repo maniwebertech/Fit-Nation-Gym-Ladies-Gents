@@ -76,6 +76,21 @@ export function getPeriodDates(
   }
 }
 
+// A payment is "advance" when its coverage month (payment_date) is later than the
+// month the cash was actually collected (collected_on) — i.e. the member paid ahead.
+// YYYY-MM string comparison is safe lexicographically.
+export function isAdvancePayment(paymentDate: string, collectedOn: string): boolean {
+  if (!paymentDate || !collectedOn) return false
+  return paymentDate.slice(0, 7) > collectedOn.slice(0, 7)
+}
+
+// A member is currently "in advance" when their latest paid coverage month is beyond
+// the current month (they have prepaid into a future month).
+export function isMemberInAdvance(lastPaymentDate: string | null | undefined): boolean {
+  if (!lastPaymentDate) return false
+  return lastPaymentDate.slice(0, 7) > getPKTDateString().slice(0, 7)
+}
+
 export function buildWhatsAppUrl(countryCode: string, phoneNumber: string | null): string {
   if (!phoneNumber) return '#'
   const digits = countryCode.replace('+', '') + phoneNumber.replace(/\D/g, '')

@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Member } from '@/types'
-import { getPKTDateString } from '@/lib/utils'
+import { getPKTDateString, isAdvancePayment } from '@/lib/utils'
 
 interface Props {
   preselectedMember?: Member
@@ -16,7 +16,8 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
   const [suggestions, setSuggestions] = useState<Member[]>([])
   const [selected, setSelected] = useState<Member | null>(preselectedMember?.id ? preselectedMember : null)
   const [amount, setAmount] = useState<number>(preselectedMember?.fee_amount ?? 3000)
-  const [date, setDate] = useState(today)
+  const [date, setDate] = useState(today)          // coverage month — which month the fee is for
+  const [collectedOn, setCollectedOn] = useState(today)  // actual day the cash was received
   const [notes, setNotes] = useState('')
   const [receipt, setReceipt] = useState<File | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
@@ -93,7 +94,8 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
     const { error: err } = await supabase.from('fee_payments').insert({
       member_id: selected.id,
       amount: Number(amount),
-      payment_date: date,
+      payment_date: date,          // coverage month (drives next-due / overdue)
+      collected_on: collectedOn,   // actual cash date (drives collection reports)
       notes: notes.trim() || null,
       receipt_url: receiptUrl,
     })
@@ -111,7 +113,7 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
           {receipt && <span className="block mt-1" style={{ color: 'var(--text-muted)' }}>Receipt attached</span>}
         </p>
         <div className="flex gap-3 justify-center">
-          <button onClick={() => { setSuccess(false); setSelected(null); setSearch(''); setAmount(3000); setDate(today); setNotes(''); setReceipt(null); setReceiptPreview(null) }} className="btn-ghost">
+          <button onClick={() => { setSuccess(false); setSelected(null); setSearch(''); setAmount(3000); setDate(today); setCollectedOn(today); setNotes(''); setReceipt(null); setReceiptPreview(null) }} className="btn-ghost">
             Add Another
           </button>
           <button onClick={onSuccess} className="btn-green">Done</button>
@@ -183,9 +185,24 @@ export default function AddFeeModal({ preselectedMember, onClose, onSuccess }: P
           </div>
 
           <div>
-            <label style={labelStyle}>PAYMENT DATE</label>
+            <label style={labelStyle}>DATE COLLECTED</label>
+            <input type="date" className="gym-input" value={collectedOn}
+              onChange={e => setCollectedOn(e.target.value)} required />
+            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+              The day you actually received the cash. Leave as today for a normal payment.
+            </p>
+          </div>
+
+          <div>
+            <label style={labelStyle}>FEE FOR MONTH</label>
             <input type="date" className="gym-input" value={date}
               onChange={e => setDate(e.target.value)} required />
+            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+              Which month this fee covers. Set a future month to record an <strong>advance</strong> payment.
+              {isAdvancePayment(date, collectedOn) && (
+                <span style={{ color: '#A78BFA', fontWeight: 600 }}> · Advance payment</span>
+              )}
+            </p>
           </div>
 
           <div>

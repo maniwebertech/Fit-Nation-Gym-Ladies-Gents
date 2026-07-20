@@ -24,7 +24,8 @@ export interface FeePayment {
   id: string
   member_id: string
   amount: number
-  payment_date: string
+  payment_date: string      // coverage month — which month this fee is FOR (drives next-due / overdue)
+  collected_on: string      // actual date the cash was received (drives collection reports)
   notes: string | null
   created_at: string
   member?: Member

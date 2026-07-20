@@ -81,6 +81,7 @@ export default function RegisterPage() {
         member_id: newMember.id,
         amount: Number(paymentAmount),
         payment_date: paymentDate,
+        collected_on: paymentDate,   // first fee is collected at registration
         notes: paymentNotes.trim() || null,
       })
       if (feeErr) {

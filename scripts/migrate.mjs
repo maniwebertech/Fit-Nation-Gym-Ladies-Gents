@@ -1,7 +1,7 @@
 import postgres from 'postgres'
 
 const sql = postgres({
-  host: 'aws-0-ap-southeast-1.pooler.supabase.com',
+  host: 'aws-1-ap-southeast-1.pooler.supabase.com',
   port: 6543,
   user: 'postgres.rpyhjeqnqizxhdybuolp',
   password: 'Fit@Nation247',
