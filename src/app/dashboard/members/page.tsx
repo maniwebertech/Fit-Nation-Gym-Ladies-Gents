@@ -180,12 +180,13 @@ export default function MembersPage() {
 
   async function applyRange() {
     setApplying(true)
-    // If a date range is given, find members whose cash was COLLECTED within it
-    // (collected_on), so advance fees land in the month the money actually arrived.
+    // If a date range is given, find members whose fee COVERS a date within it
+    // (payment_date), so an advance fee counts in the month it is FOR — even when the
+    // cash was collected earlier.
     if (rangeStart || rangeEnd) {
       let query = supabase.from('fee_payments').select('member_id, payment_date, collected_on')
-      if (rangeStart) query = query.gte('collected_on', rangeStart)
-      if (rangeEnd) query = query.lte('collected_on', rangeEnd)
+      if (rangeStart) query = query.gte('payment_date', rangeStart)
+      if (rangeEnd) query = query.lte('payment_date', rangeEnd)
       const { data } = await query
       const rows = (data || []) as Array<{ member_id: string; payment_date: string; collected_on: string }>
       setPaidIds(new Set(rows.map(r => r.member_id)))
@@ -351,12 +352,12 @@ export default function MembersPage() {
         {/* ── Advanced filter: who paid within a date range + status ── */}
         <div className="gym-card flex flex-wrap items-end gap-3 p-3">
           <div className="flex flex-col gap-1">
-            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>COLLECTED FROM</label>
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>PAID FOR — FROM</label>
             <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
               value={rangeStart} max={rangeEnd || undefined} onChange={e => setRangeStart(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1">
-            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>COLLECTED TO</label>
+            <label style={{ fontSize: '0.7rem', letterSpacing: '0.06em', color: 'var(--text-muted)', fontFamily: 'Rajdhani', fontWeight: 600 }}>PAID FOR — TO</label>
             <input type="date" className="gym-input" style={{ fontSize: '0.85rem', width: 'auto' }}
               value={rangeEnd} min={rangeStart || undefined} onChange={e => setRangeEnd(e.target.value)} />
           </div>

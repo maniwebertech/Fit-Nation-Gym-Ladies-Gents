@@ -59,9 +59,9 @@ export default function DashboardPage() {
 
     Promise.all([
       supabase.from('members_with_payment_status').select('is_overdue, days_remaining'),
-      // Collection reports filter by collected_on (actual cash date), so an advance fee
-      // is counted in the month the money arrived — not its future coverage month.
-      supabase.from('fee_payments').select('member_id, amount, payment_date, collected_on').gte('collected_on', start).lte('collected_on', end),
+      // Fees are accounted by COVERAGE month (payment_date), so a fee counts in the month
+      // it is FOR — an advance payment collected earlier still lands in its coverage month.
+      supabase.from('fee_payments').select('member_id, amount, payment_date, collected_on').gte('payment_date', start).lte('payment_date', end),
     ]).then(([membersRes, paymentsRes]) => {
       if (cancelled) return
       const members = (membersRes.data || []) as Array<{ is_overdue: boolean; days_remaining: number | null }>
@@ -69,8 +69,8 @@ export default function DashboardPage() {
       const advancePayments = payments.filter(p => isAdvancePayment(p.payment_date, p.collected_on))
       setFilteredStats({
         overdue: members.filter(m => m.is_overdue).length,
-        paid: new Set(payments.map(p => p.member_id)).size,   // distinct members who paid in the period
-        revenue: payments.reduce((s, p) => s + (p.amount || 0), 0),  // all cash collected, advance included
+        paid: new Set(payments.map(p => p.member_id)).size,   // distinct members whose fee covers this period
+        revenue: payments.reduce((s, p) => s + (p.amount || 0), 0),  // all fees for this coverage period
         due_soon: members.filter(m => m.days_remaining !== null && m.days_remaining >= 0 && m.days_remaining <= 7).length,
         advance: advancePayments.length,
         advance_amount: advancePayments.reduce((s, p) => s + (p.amount || 0), 0),

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPKR, formatDate, getPeriodDates, isAdvancePayment, buildWhatsAppUrl, type PeriodFilter } from '@/lib/utils'
 
-// One payment row joined with its member (collection reports read collected_on).
+// One payment row joined with its member (reports group by payment_date coverage month).
 interface RptPayment {
   id: string
   amount: number
@@ -67,9 +67,9 @@ export default function ReportsPage() {
     supabase
       .from('fee_payments')
       .select('id, amount, payment_date, collected_on, notes, member:members(id, full_name, father_name, phone_country_code, phone_number)')
-      .gte('collected_on', start)
-      .lte('collected_on', end)
-      .order('collected_on', { ascending: false })
+      .gte('payment_date', start)
+      .lte('payment_date', end)
+      .order('payment_date', { ascending: false })
       .then(({ data }) => {
         if (cancelled) return
         // supabase returns the embedded member as an object for a to-one relation
@@ -87,7 +87,7 @@ export default function ReportsPage() {
   const buckets = useMemo<Bucket[]>(() => {
     const map = new Map<string, Bucket>()
     for (const p of payments) {
-      const key = groupBy === 'day' ? p.collected_on.slice(0, 10) : p.collected_on.slice(0, 7)
+      const key = groupBy === 'day' ? p.payment_date.slice(0, 10) : p.payment_date.slice(0, 7)
       let b = map.get(key)
       if (!b) {
         b = { key, label: groupBy === 'day' ? formatDate(key) : monthLabel(key), count: 0, amount: 0, advance: 0, advanceAmount: 0, payments: [] }
@@ -120,7 +120,7 @@ export default function ReportsPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `fit-nation-collections-${getPeriodDates(period, customStart, customEnd).start}_to_${getPeriodDates(period, customStart, customEnd).end}.csv`
+    a.download = `fit-nation-fees-${getPeriodDates(period, customStart, customEnd).start}_to_${getPeriodDates(period, customStart, customEnd).end}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -131,7 +131,7 @@ export default function ReportsPage() {
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl" style={{ fontFamily: 'Rajdhani', fontWeight: 700 }}>REPORTS</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Fee collections by {groupBy === 'day' ? 'day' : 'month'} · {periodLabel}</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Fees by coverage {groupBy === 'day' ? 'day' : 'month'} · {periodLabel}</p>
         </div>
         <button onClick={exportCsv} disabled={loading || buckets.length === 0} className="btn-ghost shrink-0" style={{ fontSize: '0.82rem' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -190,7 +190,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-3 gap-4 mb-5">
         {([
           { label: 'Total Payments', value: loading ? '—' : totals.count, color: '#39FF14' },
-          { label: 'Total Collected', value: loading ? '—' : formatPKR(totals.amount), color: '#39FF14' },
+          { label: 'Total Fees', value: loading ? '—' : formatPKR(totals.amount), color: '#39FF14' },
           { label: 'Advance', value: loading ? '—' : `${totals.advance} · ${formatPKR(totals.advanceAmount)}`, color: '#A78BFA' },
         ] as const).map(t => (
           <div key={t.label} className="gym-card p-4">
