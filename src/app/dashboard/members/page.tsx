@@ -10,7 +10,7 @@ import MemberDetailModal from '@/components/MemberDetailModal'
 import MemberAvatar from '@/components/MemberAvatar'
 import Link from 'next/link'
 
-type Filter = 'all' | 'overdue' | 'paid' | 'due_soon' | 'male' | 'female'
+type Filter = 'all' | 'overdue' | 'paid' | 'due_soon' | 'advance' | 'male' | 'female'
 type SortField = 'full_name' | 'phone_number' | 'gender' | 'fee_amount' | 'last_payment_date' | 'next_due_date' | 'days_remaining' | 'is_overdue' | 'last_activity'
 
 // Most-recent activity timestamp for a member: latest of a detail update (member added
@@ -32,9 +32,19 @@ function getStatus(m: Member) {
 
 function StatusBadge({ m }: { m: Member }) {
   const s = getStatus(m)
+  const advance = isMemberInAdvance(m.last_payment_date)
   return (
-    <span className={s === 'overdue' ? 'badge-overdue' : s === 'due_soon' ? 'badge-due-soon' : 'badge-paid'}>
-      {s === 'overdue' ? 'OVERDUE' : s === 'due_soon' ? 'DUE SOON' : 'PAID'}
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      <span className={s === 'overdue' ? 'badge-overdue' : s === 'due_soon' ? 'badge-due-soon' : 'badge-paid'}>
+        {s === 'overdue' ? 'OVERDUE' : s === 'due_soon' ? 'DUE SOON' : 'PAID'}
+      </span>
+      {advance && (
+        <span title="Paid ahead into a future month" style={{
+          fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', fontFamily: 'Rajdhani',
+          padding: '2px 7px', borderRadius: 20, color: '#A78BFA', whiteSpace: 'nowrap',
+          background: 'rgba(139,92,246,0.14)', border: '1px solid rgba(139,92,246,0.35)',
+        }}>ADVANCE</span>
+      )}
     </span>
   )
 }
@@ -151,7 +161,9 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
-  const [sortField, setSortField] = useState<SortField>('last_activity')
+  // Default sort by fee payment date (latest coverage month) so members paid furthest
+  // ahead — including advance payers — surface at the top instead of being buried.
+  const [sortField, setSortField] = useState<SortField>('last_payment_date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
   // Advanced filter (who paid within a date range) — draft values, applied on "Filter"
@@ -226,6 +238,7 @@ export default function MembersPage() {
       filter === 'overdue' ? !!m.is_overdue :
       filter === 'paid' ? status === 'paid' :
       filter === 'due_soon' ? status === 'due_soon' :
+      filter === 'advance' ? isMemberInAdvance(m.last_payment_date) :
       filter === 'male' ? m.gender === 'Male' :
       filter === 'female' ? m.gender === 'Female' : true
 
@@ -259,6 +272,7 @@ export default function MembersPage() {
     overdue: members.filter(m => m.is_overdue).length,
     due_soon: members.filter(m => getStatus(m) === 'due_soon').length,
     paid: members.filter(m => getStatus(m) === 'paid').length,
+    advance: members.filter(m => isMemberInAdvance(m.last_payment_date)).length,
     male: members.filter(m => m.gender === 'Male').length,
     female: members.filter(m => m.gender === 'Female').length,
   }
@@ -268,6 +282,7 @@ export default function MembersPage() {
     { key: 'overdue', label: 'Overdue', color: '#FF3B5C' },
     { key: 'due_soon', label: 'Due Soon', color: '#FFA500' },
     { key: 'paid', label: 'Paid', color: '#39FF14' },
+    { key: 'advance', label: 'Advance', color: '#A78BFA' },
     { key: 'male', label: 'Gents', color: '#6B8FFF' },
     { key: 'female', label: 'Ladies', color: '#FF64B4' },
   ]
