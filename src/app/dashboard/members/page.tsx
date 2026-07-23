@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatPKR, formatDate, buildWhatsAppUrl, isAdvancePayment, isMemberInAdvance } from '@/lib/utils'
+import { formatPKR, formatDate, buildWhatsAppUrl, isAdvancePayment, getPKTDateString, getNextDueDate, getDaysRemaining } from '@/lib/utils'
 import type { Member } from '@/types'
 import AddFeeModal from '@/components/AddFeeModal'
 import EditMemberModal from '@/components/EditMemberModal'
@@ -32,7 +32,7 @@ function getStatus(m: Member) {
 
 function StatusBadge({ m }: { m: Member }) {
   const s = getStatus(m)
-  const advance = isMemberInAdvance(m.last_payment_date)
+  const advance = !!m.is_advance
   return (
     <span className="inline-flex items-center gap-1.5 flex-wrap">
       <span className={s === 'overdue' ? 'badge-overdue' : s === 'due_soon' ? 'badge-due-soon' : 'badge-paid'}>
@@ -182,8 +182,45 @@ export default function MembersPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('members_with_payment_status').select('*')
-    setMembers(data || [])
+    const [{ data: mData }, { data: pData }] = await Promise.all([
+      supabase.from('members_with_payment_status').select('*'),
+      supabase.from('fee_payments').select('member_id, payment_date'),
+    ])
+
+    // The view's last_payment_date is the FURTHEST paid coverage month. For members who
+    // prepaid future months, we instead want their CURRENT coverage — the most recent
+    // month that has already arrived (payment_date <= today) — so an advance payer shows
+    // exactly like anyone who just paid for the current month. The future months only
+    // flag them as "in advance".
+    const today = getPKTDateString()
+    const thisMonth = today.slice(0, 7)
+    const current = new Map<string, string>()   // latest coverage whose MONTH has arrived (<= this month)
+    const furthest = new Map<string, string>()  // max payment_date overall
+    for (const p of (pData || []) as Array<{ member_id: string; payment_date: string }>) {
+      const d = p.payment_date
+      if (!furthest.has(p.member_id) || d > furthest.get(p.member_id)!) furthest.set(p.member_id, d)
+      // Compare by month: a fee for the current month counts as "arrived" even if its
+      // billing day is later than today, so a member paid up for this month never shows due-soon.
+      if (d.slice(0, 7) <= thisMonth && (!current.has(p.member_id) || d > current.get(p.member_id)!)) current.set(p.member_id, d)
+    }
+
+    const merged = ((mData || []) as Member[]).map(m => {
+      const maxCoverage = furthest.get(m.id) ?? m.last_payment_date ?? null
+      const isAdvance = !!maxCoverage && maxCoverage.slice(0, 7) > today.slice(0, 7)
+      const coverage = current.get(m.id) ?? maxCoverage
+      if (!coverage) return { ...m, is_advance: isAdvance }
+      const nextDue = getNextDueDate(coverage, coverage)
+      const days = getDaysRemaining(nextDue)
+      return {
+        ...m,
+        last_payment_date: coverage,
+        next_due_date: nextDue,
+        days_remaining: days,
+        is_overdue: days < 0,
+        is_advance: isAdvance,
+      }
+    })
+    setMembers(merged)
     setLoading(false)
   }, [supabase])
 
@@ -238,7 +275,7 @@ export default function MembersPage() {
       filter === 'overdue' ? !!m.is_overdue :
       filter === 'paid' ? status === 'paid' :
       filter === 'due_soon' ? status === 'due_soon' :
-      filter === 'advance' ? isMemberInAdvance(m.last_payment_date) :
+      filter === 'advance' ? !!m.is_advance :
       filter === 'male' ? m.gender === 'Male' :
       filter === 'female' ? m.gender === 'Female' : true
 
@@ -265,14 +302,14 @@ export default function MembersPage() {
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // Members currently paid ahead (their latest coverage month is in the future)
-  const advanceMembers = members.filter(m => isMemberInAdvance(m.last_payment_date)).length
+  const advanceMembers = members.filter(m => m.is_advance).length
 
   const counts = {
     all: members.length,
     overdue: members.filter(m => m.is_overdue).length,
     due_soon: members.filter(m => getStatus(m) === 'due_soon').length,
     paid: members.filter(m => getStatus(m) === 'paid').length,
-    advance: members.filter(m => isMemberInAdvance(m.last_payment_date)).length,
+    advance: members.filter(m => m.is_advance).length,
     male: members.filter(m => m.gender === 'Male').length,
     female: members.filter(m => m.gender === 'Female').length,
   }

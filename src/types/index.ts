@@ -18,6 +18,7 @@ export interface Member {
   days_remaining?: number | null
   is_overdue?: boolean
   last_activity?: string | null
+  is_advance?: boolean          // has paid coverage beyond the current month (prepaid ahead)
 }
 
 export interface FeePayment {
