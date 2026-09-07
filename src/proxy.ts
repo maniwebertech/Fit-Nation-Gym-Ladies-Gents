@@ -6,6 +6,15 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rpyhjeqnqi
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJweWhqZXFucWl6eGhkeWJ1b2xwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzY1MTAsImV4cCI6MjA5NTAxMjUxMH0._d7Nm1u_ARQ-miehnNIMU_EkUBj2ukt7aDGwIhbkPKw'
 
 export async function proxy(request: NextRequest) {
+  // Sky Agency WhatsApp relay — see CLAUDE.md → "NON-GYM CODE LIVING IN THIS
+  // PROJECT". It is a machine endpoint called by WAHA with its own shared
+  // secret, never a logged-in gym user. The auth check below would redirect it
+  // to /login, so it is let through untouched. It authenticates itself.
+  // Removing this line silently breaks Sky Agency's lead capture.
+  if (request.nextUrl.pathname.startsWith('/api/sky-waha')) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
