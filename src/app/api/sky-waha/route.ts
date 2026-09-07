@@ -118,25 +118,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'unreadable body' }, { status: 400 })
   }
 
-  // Only forward the two events we record. Anything else is acknowledged so
-  // WAHA does not retry it 15 times.
-  let event = ''
+  // Forward EVERYTHING and let the Apps Script decide.
+  //
+  // This used to filter on event === 'message' | 'poll.vote' and drop the rest.
+  // That silently swallowed every real delivery on 7 Sep 2026: WAHA was calling
+  // this route and getting 200s, while Vercel showed "no outgoing requests",
+  // because the event name did not match what was expected here. The Apps
+  // Script already returns {ignored:<event>} for anything it does not handle,
+  // so a second filter in this file adds no safety and one more way to fail.
+  let event = 'unparsed'
   try {
     const parsed = JSON.parse(raw) as { event?: unknown }
-    event = typeof parsed.event === 'string' ? parsed.event : ''
+    if (typeof parsed.event === 'string') event = parsed.event
   } catch {
-    return NextResponse.json({ ok: true, ignored: 'unparseable' })
-  }
-
-  if (event !== 'message' && event !== 'poll.vote') {
-    return NextResponse.json({ ok: true, ignored: event || 'no event' })
+    return NextResponse.json({ ok: true, ignored: 'unparseable body' })
   }
 
   const result = await forwardToSheet(raw)
 
+  // Logged so Vercel's log view shows what WAHA actually sends and what came
+  // back — the only visibility into this hop.
+  console.log('[sky-waha]', JSON.stringify({ event, sheet: result }))
+
   // Always 200 once we have handled it. A non-2xx makes WAHA retry, and the
   // Apps Script already dedupes — retries would add load without adding rows.
-  return NextResponse.json({ ok: true, relayed: true, sheet: result })
+  return NextResponse.json({ ok: true, relayed: true, event, sheet: result })
 }
 
 /** Health check — confirms the relay is deployed and configured. */
