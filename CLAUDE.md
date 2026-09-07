@@ -75,3 +75,37 @@ PowerShell pipes add a UTF-8 BOM that breaks Supabase URL validation.
 - Address: First Floor, Soneri Bank, Main GT Rd, Wazirabad
 - Phone: 0300 6213362
 - Fee range: PKR 1,500–5,000 (default PKR 3,000)
+
+
+---
+
+## ⚠️ NON-GYM CODE LIVING IN THIS PROJECT
+
+`src/app/api/sky-waha/route.ts` does **not** belong to Fit Nation Gym.
+
+It is a WhatsApp webhook relay for a separate client project — **Sky Developers
+& Agency** (`D:\Work\Freelancing\SKY AGENCY\waha`). It is hosted here only
+because this Vercel project already existed. Added 7 Sep 2026 by Imran.
+
+**What it does:** receives WAHA webhook events for Sky Agency's WhatsApp
+outreach and forwards them to a Google Apps Script that writes them to a Google
+Sheet. It exists because Apps Script answers POST with an HTTP 302 that WAHA
+will not follow, so something has to sit in between and follow it.
+
+**How it is isolated — keep it this way:**
+- Imports nothing from this app. No shared modules, no Supabase, no components.
+- Every env var is `SKY_`-prefixed: `SKY_SHEETS_URL`, `SKY_SHEETS_SECRET`,
+  `SKY_RELAY_SECRET`. They cannot collide with gym config.
+- Without those vars it returns 503 and does nothing. A gym deploy that lacks
+  them is harmless — it never fails a build or breaks a page.
+- Touches no gym route and no gym table.
+
+**If you are working on the gym:** ignore this route entirely. It cannot affect
+gym behaviour. Do not "tidy" it into the app's conventions, do not import gym
+helpers into it, and do not rename its env vars.
+
+**To remove it:** delete `src/app/api/sky-waha/` and the three `SKY_` env vars.
+Nothing else changes. Tell Imran first — Sky Agency's lead capture depends on it.
+
+**Health check:** `GET https://fit-nation-gym.vercel.app/api/sky-waha` returns
+`{"ok":true,"service":"sky-agency-waha-relay","configured":true|false}`.
