@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { formatPKR, formatDate, buildWhatsAppUrl, isAdvancePayment, getPKTDateString, getNextDueDate, getDaysRemaining } from '@/lib/utils'
 import type { Member } from '@/types'
 import AddFeeModal from '@/components/AddFeeModal'
@@ -182,9 +183,11 @@ export default function MembersPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [{ data: mData }, { data: pData }] = await Promise.all([
-      supabase.from('members_with_payment_status').select('*'),
-      supabase.from('fee_payments').select('member_id, payment_date'),
+    // Paged: both tables can exceed Supabase's 1000-row cap
+    const [mData, pData] = await Promise.all([
+      fetchAll<Member>((from, to) => supabase.from('members_with_payment_status').select('*').order('id').range(from, to)),
+      fetchAll<{ member_id: string; payment_date: string }>((from, to) =>
+        supabase.from('fee_payments').select('member_id, payment_date').order('id').range(from, to)),
     ])
 
     // The view's last_payment_date is the FURTHEST paid coverage month. For members who
@@ -233,11 +236,12 @@ export default function MembersPage() {
     // (payment_date), so an advance fee counts in the month it is FOR — even when the
     // cash was collected earlier.
     if (rangeStart || rangeEnd) {
-      let query = supabase.from('fee_payments').select('member_id, payment_date, collected_on')
-      if (rangeStart) query = query.gte('payment_date', rangeStart)
-      if (rangeEnd) query = query.lte('payment_date', rangeEnd)
-      const { data } = await query
-      const rows = (data || []) as Array<{ member_id: string; payment_date: string; collected_on: string }>
+      const rows = await fetchAll<{ member_id: string; payment_date: string; collected_on: string }>((from, to) => {
+        let query = supabase.from('fee_payments').select('member_id, payment_date, collected_on')
+        if (rangeStart) query = query.gte('payment_date', rangeStart)
+        if (rangeEnd) query = query.lte('payment_date', rangeEnd)
+        return query.order('id').range(from, to)
+      })
       setPaidIds(new Set(rows.map(r => r.member_id)))
       setRangeAdvance(rows.filter(r => isAdvancePayment(r.payment_date, r.collected_on)).length)
     } else {

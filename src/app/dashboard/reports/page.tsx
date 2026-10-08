@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { formatPKR, formatDate, getPeriodDates, isAdvancePayment, buildWhatsAppUrl, type PeriodFilter } from '@/lib/utils'
 
 // One payment row joined with its member (reports group by payment_date coverage month).
@@ -64,16 +65,19 @@ export default function ReportsPage() {
     let cancelled = false
     setLoading(true)
     const supabase = createClient()
-    supabase
+    // Paged: a long period (e.g. last year) easily exceeds Supabase's 1000-row cap
+    fetchAll((from, to) => supabase
       .from('fee_payments')
       .select('id, amount, payment_date, collected_on, notes, member:members(id, full_name, father_name, phone_country_code, phone_number)')
       .gte('payment_date', start)
       .lte('payment_date', end)
       .order('payment_date', { ascending: false })
-      .then(({ data }) => {
+      .order('id')
+      .range(from, to))
+      .then((data) => {
         if (cancelled) return
         // supabase returns the embedded member as an object for a to-one relation
-        const rows = (data || []).map((r) => {
+        const rows = data.map((r) => {
           const rec = r as unknown as Omit<RptPayment, 'member'> & { member: RptPayment['member'] | RptPayment['member'][] }
           const member = Array.isArray(rec.member) ? rec.member[0] ?? null : rec.member
           return { ...rec, member } as RptPayment

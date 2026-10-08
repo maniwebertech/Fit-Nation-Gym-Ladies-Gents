@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import Link from 'next/link'
 import { formatPKR, getPeriodDates, isAdvancePayment, type PeriodFilter } from '@/lib/utils'
 import AddFeeModal from '@/components/AddFeeModal'
@@ -57,15 +58,16 @@ export default function DashboardPage() {
     setFilteredLoading(true)
     const supabase = createClient()
 
+    // Paged: both queries can exceed Supabase's 1000-row cap
     Promise.all([
-      supabase.from('members_with_payment_status').select('is_overdue, days_remaining'),
+      fetchAll<{ is_overdue: boolean; days_remaining: number | null }>((from, to) =>
+        supabase.from('members_with_payment_status').select('is_overdue, days_remaining').order('id').range(from, to)),
       // Fees are accounted by COVERAGE month (payment_date), so a fee counts in the month
       // it is FOR — an advance payment collected earlier still lands in its coverage month.
-      supabase.from('fee_payments').select('member_id, amount, payment_date, collected_on').gte('payment_date', start).lte('payment_date', end),
-    ]).then(([membersRes, paymentsRes]) => {
+      fetchAll<{ member_id: string; amount: number; payment_date: string; collected_on: string }>((from, to) =>
+        supabase.from('fee_payments').select('member_id, amount, payment_date, collected_on').gte('payment_date', start).lte('payment_date', end).order('id').range(from, to)),
+    ]).then(([members, payments]) => {
       if (cancelled) return
-      const members = (membersRes.data || []) as Array<{ is_overdue: boolean; days_remaining: number | null }>
-      const payments = (paymentsRes.data || []) as Array<{ member_id: string; amount: number; payment_date: string; collected_on: string }>
       const advancePayments = payments.filter(p => isAdvancePayment(p.payment_date, p.collected_on))
       setFilteredStats({
         overdue: members.filter(m => m.is_overdue).length,
