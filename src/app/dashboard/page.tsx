@@ -34,8 +34,7 @@ export default function DashboardPage() {
   // Global stats — total/gents/ladies never change with period filter
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('members').select('gender').then(({ data }) => {
-      const members = (data || []) as Array<{ gender: string }>
+    fetchAll<{ gender: string }>((from, to) => supabase.from('members').select('gender').order('id').range(from, to)).then((members) => {
       setGlobalStats({
         total: members.length,
         male: members.filter(m => m.gender === 'Male').length,
